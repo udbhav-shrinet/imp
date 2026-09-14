@@ -1,0 +1,13 @@
+crewai
+langchain
+alpaca-trade-api
+py-alpaca-api
+pandas
+numpy
+scikit-learn
+statsmodels
+praw
+python-dotenv
+yfinance
+requests
+nltk
