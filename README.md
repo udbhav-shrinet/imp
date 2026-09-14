@@ -25,20 +25,33 @@ load keys dynamically via `os.environ`.
 
 ## Run
 
-```bash
-# Dry run: analysis only, no trades placed
-python main.py --symbol AAPL --capital 10000
+Every run scans a **watchlist**, not one symbol -- each ticker goes
+through the full pipeline independently and gets logged whether or not
+Team A approves it.
 
-# Execute the approved thesis as a paper trade
-python main.py --symbol AAPL --capital 10000 --execute
+```bash
+# Dry run: analysis only, no trades placed, default watchlist
+python main.py --capital 10000
+
+# Your own watchlist
+python main.py --symbols AAPL,MSFT,TSLA --capital 10000
+
+# Execute every approved thesis as a paper trade
+python main.py --capital 10000 --execute
 ```
+
+The default watchlist (`main.py`'s `DEFAULT_WATCHLIST`) is ten liquid
+large-caps spanning tech, finance, energy, and healthcare -- a stand-in
+for "the market," since actually scanning every listed symbol with a
+full ARIMA/GBM/Random-Forest pass per name isn't practical. Extend it
+with `--symbols`.
 
 ## Running on a schedule (GitHub Actions)
 
 `.github/workflows/trading-pipeline.yml` runs the pipeline automatically
-every weekday shortly after market open, and can also be triggered
-manually from the Actions tab (`Run workflow`, with `symbol`, `capital`,
-and `execute` inputs).
+every 4 hours on weekdays, and can also be triggered manually from the
+Actions tab (`Run workflow`, with `symbols`, `capital`, and `execute`
+inputs).
 
 Add these as **repository secrets** (Settings → Secrets and variables →
 Actions) before enabling it:
@@ -48,13 +61,20 @@ Actions) before enabling it:
 - `REDDIT_CLIENT_ID`
 - `REDDIT_CLIENT_SECRET`
 
-The workflow always targets the paper trading endpoint and defaults to a
-dry run (analysis only, no order placed) unless `execute` is set to
-`true`. Output is visible in the workflow run's logs.
+The workflow always targets the paper trading endpoint and executes by
+default (a scheduled run has no dispatch inputs to opt out with, so
+`execute` only turns off if a manual run explicitly sets it to `false`).
+It commits the updated `logs/history.json` back to `main` after every
+run.
 
-GitHub Pages is not used here — Pages only serves static files and can't
-run Python, hold API secrets, or execute a scheduled backend job, which
-is what this pipeline needs.
+## Dashboard (GitHub Pages)
+
+`index.html` is a static dashboard reading `logs/history.json`
+same-origin -- enable it once under Settings → Pages → Source: Deploy
+from a branch → `main` / `(root)`, then visit
+`https://<you>.github.io/<repo>/`. A published Claude Artifact can't
+pull this off (its CSP blocks fetching external JSON), which is why this
+lives as a plain page in the repo instead.
 
 ## Project Structure
 

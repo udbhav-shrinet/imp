@@ -16,6 +16,7 @@
     --baseline:       #c3c2b7;
     --border:         rgba(11,11,11,0.10);
     --series-1:       #2a78d6;
+    --series-2:       #eb6834;
     --good:           #0ca30c;
     --critical:       #d03b3b;
     --warning:        #fab219;
@@ -32,6 +33,7 @@
       --baseline:       #383835;
       --border:         rgba(255,255,255,0.10);
       --series-1:       #3987e5;
+      --series-2:       #d95926;
       --good:           #0ca30c;
       --critical:       #e66767;
       --warning:        #fab219;
@@ -48,6 +50,7 @@
     --baseline:       #383835;
     --border:         rgba(255,255,255,0.10);
     --series-1:       #3987e5;
+    --series-2:       #d95926;
     --good:           #0ca30c;
     --critical:       #e66767;
     --warning:        #fab219;
@@ -61,16 +64,31 @@
     color: var(--text-primary);
     font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
   }
-  .wrap { max-width: 1080px; margin: 0 auto; }
+  .wrap { max-width: 1160px; margin: 0 auto; }
 
   h1 { font-size: 20px; margin: 0 0 4px; }
-  .subtitle { color: var(--text-secondary); margin: 0 0 24px; }
+  .subtitle { color: var(--text-secondary); margin: 0 0 20px; }
+
+  .tabs {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    border-bottom: 1px solid var(--gridline);
+    margin-bottom: 20px;
+    padding-bottom: 0;
+  }
+  .tab-btn {
+    appearance: none; border: none; background: transparent;
+    color: var(--text-secondary); font: inherit; font-weight: 600; font-size: 13px;
+    padding: 10px 14px; cursor: pointer; border-radius: 8px 8px 0 0;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .tab-btn:hover { color: var(--text-primary); background: var(--surface-1); }
+  .tab-btn.active { color: var(--series-1); border-bottom-color: var(--series-1); }
 
   .kpis {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 12px;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
   }
   .kpi {
     background: var(--surface-1);
@@ -78,8 +96,8 @@
     border-radius: 10px;
     padding: 14px 16px;
   }
-  .kpi .label { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
-  .kpi .value { font-size: 22px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .kpi .label { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .kpi .value { font-size: 20px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
   .kpi .value.good { color: var(--good); }
   .kpi .value.critical { color: var(--critical); }
 
@@ -88,10 +106,11 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 16px;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     overflow-x: auto;
   }
   .panel h2 { font-size: 14px; margin: 0 0 12px; color: var(--text-secondary); font-weight: 600; }
+  .panel p.note { color: var(--text-muted); font-size: 12px; margin: 0 0 12px; }
 
   svg text { fill: var(--text-muted); font-size: 11px; }
   .chart-line { fill: none; stroke: var(--series-1); stroke-width: 2; }
@@ -103,13 +122,14 @@
     position: absolute; pointer-events: none; display: none;
     background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px;
     padding: 6px 10px; font-size: 12px; color: var(--text-primary); white-space: nowrap;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 10;
   }
 
-  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
-  th { color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 640px; }
+  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
+  th { color: var(--text-muted); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; }
   tr:last-child td { border-bottom: none; }
+  td.wrap-cell { white-space: normal; max-width: 260px; }
 
   .badge {
     display: inline-flex; align-items: center; gap: 4px;
@@ -119,12 +139,8 @@
   .badge.critical { color: var(--critical); background: color-mix(in srgb, var(--critical) 15%, transparent); }
   .badge.muted { color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 15%, transparent); }
 
-  .empty {
-    text-align: center; padding: 48px 16px; color: var(--text-secondary);
-  }
-  .empty code {
-    background: var(--gridline); padding: 2px 6px; border-radius: 4px; font-size: 12px;
-  }
+  .empty { text-align: center; padding: 48px 16px; color: var(--text-secondary); }
+  .empty code { background: var(--gridline); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
 
   footer { color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 8px; }
 </style>
@@ -132,7 +148,15 @@
 <body>
 <div class="wrap">
   <h1>Trading Pipeline Dashboard</h1>
-  <p class="subtitle">Team C &rarr; Team B &rarr; Team A &rarr; Team S, one row per run. Paper trading only.</p>
+  <p class="subtitle">Team C &rarr; Team B &rarr; Team A &rarr; Team S. Paper trading only.</p>
+
+  <div class="tabs" id="tabs">
+    <button class="tab-btn active" data-tab="main">Main</button>
+    <button class="tab-btn" data-tab="teamc">Team C &middot; Data &amp; Signals</button>
+    <button class="tab-btn" data-tab="teamb">Team B &middot; Quants</button>
+    <button class="tab-btn" data-tab="teama">Team A &middot; Strategy &amp; Risk</button>
+    <button class="tab-btn" data-tab="teams">Team S &middot; Execution</button>
+  </div>
 
   <div id="content">
     <div class="empty">Loading run history&hellip;</div>
@@ -145,33 +169,50 @@
 <script>
 const HISTORY_URL = './logs/history.json';
 const REFRESH_MS = 60000;
+const ROW_LIMIT = 150;
+
+let historyData = [];
+let activeTab = 'main';
+let lastEquityPoints = [];
 
 function fmtMoney(n) {
-  if (n === null || n === undefined) return '—';
+  if (n === null || n === undefined || Number.isNaN(n)) return '—';
   return '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
+function fmtNum(n, digits) {
+  if (n === null || n === undefined || Number.isNaN(n)) return '—';
+  return Number(n).toFixed(digits === undefined ? 2 : digits);
+}
 function fmtPct(n) {
-  if (n === null || n === undefined) return '—';
+  if (n === null || n === undefined || Number.isNaN(n)) return '—';
   return (Number(n) * 100).toFixed(1) + '%';
 }
 function fmtTime(iso) {
+  if (!iso) return '—';
   const d = new Date(iso);
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
-
+function esc(s) {
+  return String(s === null || s === undefined ? '' : s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
 function statusBadge(text, kind) {
-  return `<span class="badge ${kind}">${text}</span>`;
+  return `<span class="badge ${kind}">${esc(text)}</span>`;
+}
+function recent(list) {
+  return list.slice().reverse().slice(0, ROW_LIMIT);
 }
 
 function renderEmpty(message) {
   document.getElementById('content').innerHTML = `
     <div class="empty">
-      <p>${message}</p>
+      <p>${esc(message)}</p>
       <p>Runs are written by <code>.github/workflows/trading-pipeline.yml</code> to
       <code>logs/history.json</code> — check back after the next scheduled run,
       or trigger it manually from the Actions tab.</p>
     </div>`;
 }
+
+// ---------------------------------------------------------------- Main tab
 
 function buildEquitySeries(history) {
   return history
@@ -181,7 +222,7 @@ function buildEquitySeries(history) {
 
 function renderEquityChart(series) {
   if (series.length < 2) {
-    return '<p style="color:var(--text-muted)">Not enough account snapshots yet to draw an equity curve (need Alpaca credentials configured and at least two runs).</p>';
+    return '<p class="note">Not enough account snapshots yet to draw an equity curve (need Alpaca credentials configured and at least two runs).</p>';
   }
   const W = 1000, H = 220, PAD = 32;
   const values = series.map(s => s.equity);
@@ -214,8 +255,6 @@ function renderEquityChart(series) {
   `;
 }
 
-let lastEquityPoints = [];
-
 function wireEquityHover() {
   const svg = document.getElementById('equity-svg');
   if (!svg) return;
@@ -224,6 +263,7 @@ function wireEquityHover() {
   const dot = document.getElementById('hover-dot');
   const tooltip = document.getElementById('tooltip');
   const points = lastEquityPoints;
+  if (!points.length) return;
 
   target.addEventListener('mousemove', (e) => {
     const rect = svg.getBoundingClientRect();
@@ -252,28 +292,36 @@ function wireEquityHover() {
   });
 }
 
-function renderRunRow(r) {
+function renderTradeLogRow(r) {
+  const exec = r.execution_result;
+  if (!exec || !exec.executed) return '';
+  return `
+    <tr>
+      <td>${fmtTime(r.run_at)}</td>
+      <td>${esc(r.symbol)}</td>
+      <td>${esc(exec.side)}</td>
+      <td>${exec.total_qty ?? '—'}</td>
+      <td>${fmtMoney(exec.reference_price)}</td>
+      <td>${(exec.child_orders || []).length}</td>
+      <td>${r.account ? fmtMoney(r.account.equity) : '—'}</td>
+    </tr>`;
+}
+
+function renderMainRow(r) {
   const teamA = r.team_a_report || {};
   const exec = r.execution_result;
-  const direction = teamA.direction || '—';
   const approvedBadge = teamA.approved
     ? statusBadge('approved', 'good')
     : statusBadge(teamA.veto_reason ? 'vetoed' : 'no trade', teamA.veto_reason ? 'critical' : 'muted');
   const execBadge = !exec
     ? statusBadge('dry run', 'muted')
     : (exec.executed ? statusBadge('executed', 'good') : statusBadge(exec.reason || 'skipped', 'muted'));
-  const rsi = r.team_c?.statistics?.rsi_14;
-  const probUp = r.team_b?.ml_engineer?.probability_up_next_day;
-  const regime = r.team_b?.mathematician?.market_regime;
 
   return `
     <tr>
       <td>${fmtTime(r.run_at)}</td>
-      <td>${r.symbol}</td>
-      <td>${rsi !== undefined ? rsi.toFixed(1) : '—'}</td>
-      <td>${regime || '—'}</td>
-      <td>${probUp !== undefined ? fmtPct(probUp) : '—'}</td>
-      <td>${direction}</td>
+      <td>${esc(r.symbol)}</td>
+      <td>${esc(teamA.direction) || '—'}</td>
       <td>${approvedBadge}</td>
       <td>${fmtMoney(teamA.position_size_usd)}</td>
       <td>${execBadge}</td>
@@ -281,27 +329,23 @@ function renderRunRow(r) {
     </tr>`;
 }
 
-function render(history) {
-  if (!history || history.length === 0) {
-    renderEmpty('No runs logged yet.');
-    return;
-  }
-
-  const latest = history[history.length - 1];
-  const executedCount = history.filter(r => r.execution_result?.executed).length;
+function renderMainTab(history) {
+  const latestWithAccount = history.slice().reverse().find(r => r.account);
+  const executedRows = history.filter(r => r.execution_result?.executed);
   const approvedCount = history.filter(r => r.team_a_report?.approved).length;
-  const latestEquity = latest.account?.equity;
-
+  const symbolsScanned = new Set(history.map(r => r.symbol)).size;
   const equitySeries = buildEquitySeries(history);
-  const rows = history.slice().reverse().slice(0, 100).map(renderRunRow).join('');
 
-  document.getElementById('content').innerHTML = `
+  const tradeRows = recent(executedRows).map(renderTradeLogRow).join('');
+  const mainRows = recent(history).map(renderMainRow).join('');
+
+  return `
     <div class="kpis">
-      <div class="kpi"><div class="label">Latest Equity</div><div class="value">${fmtMoney(latestEquity)}</div></div>
-      <div class="kpi"><div class="label">Total Runs</div><div class="value">${history.length}</div></div>
+      <div class="kpi"><div class="label">Latest Equity</div><div class="value">${fmtMoney(latestWithAccount?.account?.equity)}</div></div>
+      <div class="kpi"><div class="label">Total Scans</div><div class="value">${history.length}</div></div>
+      <div class="kpi"><div class="label">Symbols Covered</div><div class="value">${symbolsScanned}</div></div>
       <div class="kpi"><div class="label">Approved Theses</div><div class="value">${approvedCount}</div></div>
-      <div class="kpi"><div class="label">Trades Executed</div><div class="value">${executedCount}</div></div>
-      <div class="kpi"><div class="label">Last Run</div><div class="value" style="font-size:15px">${fmtTime(latest.run_at)}</div></div>
+      <div class="kpi"><div class="label">Trades Executed</div><div class="value">${executedRows.length}</div></div>
     </div>
 
     <div class="panel">
@@ -310,20 +354,191 @@ function render(history) {
     </div>
 
     <div class="panel">
-      <h2>Run History (most recent first)</h2>
+      <h2>Trade Log (buys &amp; sells actually submitted)</h2>
+      ${tradeRows ? `
       <table>
-        <thead>
-          <tr>
-            <th>Time</th><th>Symbol</th><th>RSI(14)</th><th>Regime</th>
-            <th>P(up)</th><th>Thesis</th><th>Team A</th><th>Size</th><th>Team S</th><th>Equity</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
+        <thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Ref. Price</th><th>Child Orders</th><th>Equity After</th></tr></thead>
+        <tbody>${tradeRows}</tbody>
+      </table>` : '<p class="note">No trades executed yet.</p>'}
+    </div>
+
+    <div class="panel">
+      <h2>All Scans (most recent first)</h2>
+      <table>
+        <thead><tr><th>Time</th><th>Symbol</th><th>Thesis</th><th>Team A</th><th>Size</th><th>Team S</th><th>Equity</th></tr></thead>
+        <tbody>${mainRows}</tbody>
       </table>
     </div>
   `;
-  wireEquityHover();
 }
+
+// -------------------------------------------------------------- Team C tab
+
+function renderTeamCRow(r) {
+  const c = r.team_c || {};
+  const stats = c.statistics || {};
+  const sent = c.sentiment || {};
+  return `
+    <tr>
+      <td>${fmtTime(r.run_at)}</td>
+      <td>${esc(r.symbol)}</td>
+      <td>${fmtMoney(c.last_close)}</td>
+      <td>${fmtNum(stats.rsi_14, 1)}</td>
+      <td>${fmtNum(stats.sma_20)}</td>
+      <td>${fmtNum(stats.z_score_20)}</td>
+      <td>${fmtNum(stats.atr_14)}</td>
+      <td>${fmtNum(sent.mean_compound, 2)}</td>
+      <td>${sent.reddit_post_count ?? 0} / ${sent.news_article_count ?? 0}</td>
+      <td class="wrap-cell">${esc((sent.top_keywords || []).slice(0, 6).join(', '))}</td>
+    </tr>`;
+}
+
+function renderTeamCTab(history) {
+  const rows = recent(history).map(renderTeamCRow).join('');
+  return `
+    <div class="panel">
+      <h2>Data Puller &amp; Statistician</h2>
+      <p class="note">Moving averages, RSI, Bollinger/Z-score, ATR -- see knowledge_base/team_c_data_signals.md for formulas.</p>
+      <table>
+        <thead><tr><th>Time</th><th>Symbol</th><th>Close</th><th>RSI(14)</th><th>SMA(20)</th><th>Z-score</th><th>ATR(14)</th><th>Sentiment</th><th>Reddit/News</th><th>Top Keywords</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="10" class="note">No data yet.</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+// -------------------------------------------------------------- Team B tab
+
+function renderTeamBRow(r) {
+  const b = r.team_b || {};
+  const math = b.mathematician || {};
+  const ou = math.ornstein_uhlenbeck || {};
+  const ml = b.ml_engineer || {};
+  return `
+    <tr>
+      <td>${fmtTime(r.run_at)}</td>
+      <td>${esc(r.symbol)}</td>
+      <td>${esc(math.market_regime) || '—'}</td>
+      <td>${fmtPct(math.annualized_drift)}</td>
+      <td>${fmtPct(math.annualized_volatility)}</td>
+      <td>${fmtNum(ou.theta, 3)}</td>
+      <td>${fmtMoney(ou.mu)}</td>
+      <td>${fmtPct(ml.probability_up_next_day)}</td>
+    </tr>`;
+}
+
+function renderTeamBTab(history) {
+  const rows = recent(history).map(renderTeamBRow).join('');
+  return `
+    <div class="panel">
+      <h2>Mathematician &amp; ML Engineer</h2>
+      <p class="note">GBM/Ornstein-Uhlenbeck/regime detection + Random Forest walk-forward probability -- see knowledge_base/team_b_quants.md.</p>
+      <table>
+        <thead><tr><th>Time</th><th>Symbol</th><th>Regime</th><th>Ann. Drift</th><th>Ann. Vol</th><th>OU theta</th><th>OU mu</th><th>P(up next day)</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="8" class="note">No data yet.</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+// -------------------------------------------------------------- Team A tab
+
+function renderTeamARow(r) {
+  const a = r.team_a_report || {};
+  const approvedBadge = a.approved
+    ? statusBadge('approved', 'good')
+    : statusBadge(a.veto_reason ? 'vetoed' : 'no trade', a.veto_reason ? 'critical' : 'muted');
+  return `
+    <tr>
+      <td>${fmtTime(r.run_at)}</td>
+      <td>${esc(r.symbol)}</td>
+      <td>${esc(a.direction) || '—'}</td>
+      <td>${fmtPct(a.confidence)}</td>
+      <td>${approvedBadge}</td>
+      <td class="wrap-cell">${esc(a.veto_reason) || '—'}</td>
+      <td>${fmtPct(a.kelly_fraction)}</td>
+      <td>${fmtPct(a.var_95)}</td>
+      <td>${fmtPct(a.cvar_95)}</td>
+      <td>${fmtMoney(a.position_size_usd)}</td>
+    </tr>`;
+}
+
+function renderTeamATab(history) {
+  const rows = recent(history).map(renderTeamARow).join('');
+  return `
+    <div class="panel">
+      <h2>Trader &amp; Risker</h2>
+      <p class="note">Kelly Criterion sizing, VaR/CVaR veto -- see knowledge_base/team_a_strategy_risk.md.</p>
+      <table>
+        <thead><tr><th>Time</th><th>Symbol</th><th>Thesis</th><th>Confidence</th><th>Status</th><th>Veto Reason</th><th>Kelly</th><th>VaR(95)</th><th>CVaR(95)</th><th>Size</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="10" class="note">No data yet.</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+// -------------------------------------------------------------- Team S tab
+
+function renderTeamSRow(r) {
+  const exec = r.execution_result;
+  const badge = !exec
+    ? statusBadge('dry run', 'muted')
+    : (exec.executed ? statusBadge('executed', 'good') : statusBadge('skipped', 'muted'));
+  return `
+    <tr>
+      <td>${fmtTime(r.run_at)}</td>
+      <td>${esc(r.symbol)}</td>
+      <td>${badge}</td>
+      <td>${exec?.side ? esc(exec.side) : '—'}</td>
+      <td>${exec?.total_qty ?? '—'}</td>
+      <td>${exec?.reference_price ? fmtMoney(exec.reference_price) : '—'}</td>
+      <td>${(exec?.child_orders || []).length}</td>
+      <td class="wrap-cell">${exec && !exec.executed ? esc(exec.reason) : '—'}</td>
+    </tr>`;
+}
+
+function renderTeamSTab(history) {
+  const rows = recent(history).map(renderTeamSRow).join('');
+  return `
+    <div class="panel">
+      <h2>Execution</h2>
+      <p class="note">TWAP-sliced, whole-share orders; only acts on a Team-A-approved report -- see knowledge_base/team_s_execution.md.</p>
+      <table>
+        <thead><tr><th>Time</th><th>Symbol</th><th>Status</th><th>Side</th><th>Qty</th><th>Ref. Price</th><th>Child Orders</th><th>Skip Reason</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="8" class="note">No data yet.</td></tr>'}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+// ------------------------------------------------------------------ Router
+
+const TAB_RENDERERS = {
+  main: renderMainTab,
+  teamc: renderTeamCTab,
+  teamb: renderTeamBTab,
+  teama: renderTeamATab,
+  teams: renderTeamSTab,
+};
+
+function renderActiveTab() {
+  if (!historyData.length) {
+    renderEmpty('No runs logged yet.');
+    return;
+  }
+  const renderer = TAB_RENDERERS[activeTab] || renderMainTab;
+  document.getElementById('content').innerHTML = renderer(historyData);
+  if (activeTab === 'main') wireEquityHover();
+}
+
+document.getElementById('tabs').addEventListener('click', (e) => {
+  const btn = e.target.closest('.tab-btn');
+  if (!btn) return;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeTab = btn.dataset.tab;
+  renderActiveTab();
+});
 
 async function load() {
   try {
@@ -332,8 +547,8 @@ async function load() {
       renderEmpty('No run history yet (logs/history.json not found).');
       return;
     }
-    const history = await res.json();
-    render(history);
+    historyData = await res.json();
+    renderActiveTab();
     document.getElementById('footer').textContent = 'Last refreshed ' + new Date().toLocaleTimeString();
   } catch (e) {
     renderEmpty('Could not load run history: ' + e.message);

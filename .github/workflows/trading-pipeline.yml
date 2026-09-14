@@ -6,12 +6,12 @@ on:
     - cron: "0 */4 * * 1-5"
   workflow_dispatch:
     inputs:
-      symbol:
-        description: "Ticker symbol to analyze"
+      symbols:
+        description: "Comma-separated ticker symbols to scan (the watchlist)"
         required: false
-        default: "AAPL"
+        default: "AAPL,MSFT,GOOGL,AMZN,NVDA,META,TSLA,JPM,XOM,JNJ"
       capital:
-        description: "Capital allocated to this thesis (USD)"
+        description: "Capital allocated per approved thesis (USD)"
         required: false
         default: "10000"
       execute:
@@ -48,7 +48,7 @@ jobs:
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
           REDDIT_USER_AGENT: trading-system-sentiment-bot/1.0
         run: |
-          ARGS=(--symbol "${{ github.event.inputs.symbol || 'AAPL' }}" --capital "${{ github.event.inputs.capital || '10000' }}")
+          ARGS=(--symbols "${{ github.event.inputs.symbols || 'AAPL,MSFT,GOOGL,AMZN,NVDA,META,TSLA,JPM,XOM,JNJ' }}" --capital "${{ github.event.inputs.capital || '10000' }}")
           # Scheduled runs (no workflow_dispatch inputs) execute by default;
           # a manual run can opt out with execute=false.
           if [ "${{ github.event.inputs.execute }}" != "false" ]; then
