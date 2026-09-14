@@ -126,20 +126,25 @@ live $200 account scanning the full watchlist, it capped every position
 at $5 (25% of $20) — enough to prove the safety logic worked (nothing
 overspent, nothing crashed) but not enough to buy a whole share of
 almost anything in a large/mid-cap watchlist, so all 45 approved theses
-in that run were skipped and zero trades executed. `$50`/`25%` (→ ~$12.50
-realistic ceiling) is the current default as a result — still small
-relative to $200, but able to reach more of the cheaper names.
+in that run were skipped and zero trades executed. Raising the caps to
+`$50`/`25%` (→ ~$12.50 realistic ceiling) **still executed zero trades**
+on the next live run — the cheapest symbol in the whole 76-name
+watchlist that run (T, at $26.53) still cost more than double the
+$12.50 ceiling. No amount of raising a whole-share-only cap fixes that
+without also blowing past "small relative to $200."
 
-One consequence remains true regardless of the exact numbers: a stock
-priced above the realistic per-trade ceiling can't buy even one whole
-share (fractional orders are avoided — see Team S below) and will
-always skip with "buys less than one whole share." On a small account,
-scanning ~75 symbols is partly a way of finding the handful that are
-actually affordable, not an expectation that most of them will trade.
-Raise `--max-position-usd` / `--max-position-pct` (or your account's
-equity) further if you want the pricier names in the watchlist to be
-reachable — and expect to trade off "more trades fill" against "each
-one that does risks more."
+**The actual fix was allowing fractional shares on the buy side.**
+Alpaca's fractional restriction is specifically "fractional orders
+cannot be sold short" — it only blocks the short side. Long positions
+can be fractional with no such restriction, so `agents/team_s_execution.py`
+now computes `qty = affordable_usd / price` (unrounded to a share count)
+for `long` theses, and only forces whole shares for `short` theses. A
+$12.50 thesis on a $665 stock now buys ~0.019 shares instead of skipping
+outright. TWAP-slicing is also skipped for these (1 slice, not 4) — a
+$12.50 order has no market impact to guard against, and splitting it
+would risk a per-slice notional under Alpaca's $1 fractional-order floor.
+Short theses are unaffected: still whole-share-only, still skip cleanly
+if the ceiling can't reach one share.
 
 ### 3. Automatically, on a schedule
 
@@ -274,13 +279,25 @@ Input: Team A's report. Output: submitted paper orders. Code:
 `agents/team_s_execution.py`, `tools/alpaca_tools.py`.
 
 - Refuses to act unless `approved: true`.
-- Converts dollars to **whole shares** (`position_size_usd // price`).
-  Fractional shares are deliberately avoided: Alpaca rejects fractional
-  short sales outright, and fractional orders carry other API
-  restrictions.
-- Skips with a clear reason if the allocation can't buy one full share.
-- **TWAP-slices** the order into 4 equal whole-share child orders to
-  simulate real-world slippage avoidance.
+- Re-checks live buying power immediately before submitting and clamps
+  down to it, since Team A sizes each symbol independently and several
+  approved theses in one batch can otherwise collectively exceed what's
+  actually left to spend.
+- **Long theses buy fractional shares** (`qty = affordable_usd / price`,
+  unrounded). Alpaca's fractional restriction is specifically "cannot be
+  sold short" — it doesn't apply to buys, and a small account often
+  needs it: whole-share-only sizing meant nothing in a 76-symbol
+  large/mid-cap watchlist was ever cheap enough to buy on a $200
+  account, no matter how the dollar caps were tuned. Skips cleanly if
+  the affordable notional is below Alpaca's $1 fractional-order minimum.
+- **Short theses stay whole-share** (`int(affordable_usd // price)`) —
+  Alpaca rejects fractional short sales outright. Skips cleanly if that
+  rounds to zero shares.
+- **TWAP-slices** whole-share (short) orders into 4 equal child orders to
+  simulate real-world slippage avoidance. Fractional (long) orders are
+  submitted as a single order instead — a $12 position has no market
+  impact worth slicing against, and splitting it risks a per-slice
+  notional under Alpaca's $1 floor.
 - Submits market orders, `time_in_force: day`, to the paper endpoint.
 
 ---
@@ -363,7 +380,8 @@ Worth being clear about, since this trades real (paper) money:
   ARIMA/GBM/Random-Forest pass per symbol doesn't scale to thousands,
   and each additional symbol also means more Reddit API calls in the
   same run, which risks rate-limiting on a large watchlist.
-- **Whole-share sizing means a low dollar ceiling can't reach
-  higher-priced stocks.** A ~$12.50 realistic per-trade ceiling on a
-  $200 account simply can't buy one share of a $650 stock; that scan
+- **Short theses still can't reach higher-priced stocks.** Longs buy
+  fractional shares now (see Team S above), but shorts stay whole-share
+  only because Alpaca rejects fractional short sales — a ~$12.50
+  ceiling still can't short one share of a $650 stock, and that scan
   will always skip, by design.
