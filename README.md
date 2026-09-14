@@ -76,15 +76,15 @@ python main.py --symbols AAPL,MSFT,TSLA
 # Actually submit paper trades for every approved thesis
 python main.py --execute
 
-# Raise the per-position ceiling (see the sizing model below)
-python main.py --max-position-usd 50 --execute
+# Raise the per-position ceiling further still
+python main.py --max-position-usd 100 --execute
 ```
 
 | Flag | Default | Meaning |
 |---|---|---|
 | `--symbols` | the ~75-symbol `DEFAULT_WATCHLIST` in `main.py` | Comma-separated tickers to scan |
-| `--max-position-usd` | `20` | Hard dollar ceiling for a single position, regardless of equity |
-| `--max-position-pct` | `0.10` | Ceiling as a fraction of current equity — whichever cap is smaller wins |
+| `--max-position-usd` | `50` | Hard dollar ceiling for a single position, regardless of equity |
+| `--max-position-pct` | `0.25` | Ceiling as a fraction of current equity — whichever cap is smaller wins |
 | `--execute` | off (dry run) | Without it, Team S is skipped entirely |
 
 ### 2. Manually, from GitHub Actions
@@ -108,12 +108,12 @@ Now the cap is derived from live equity every run:
 position_cap = min(max_position_usd, current_equity × max_position_pct)
 ```
 
-On $200 with the defaults, that's `min($20, $20) = $20` — small enough
-that several approved theses in the same batch still fit inside the
-account. Two more guards sit underneath it:
+On $200 with the defaults, that's `min($50, $50) = $50`. Two more guards
+sit underneath it:
 
 - **Team A's own half-Kelly, capped at 25% of that figure** (unchanged —
-  see below), so a single thesis rarely even reaches the $20 ceiling.
+  see below), so the realistic ceiling on any single trade is closer to
+  ~$12.50, not the full $50.
 - **Team S re-checks live buying power immediately before submitting**
   (`agents/team_s_execution.py`), since Team A sizes each symbol
   independently and several approved theses in one batch can otherwise
@@ -121,14 +121,25 @@ account. Two more guards sit underneath it:
   whatever's really available and skips cleanly if that's under one
   share, rather than letting the broker reject the order.
 
-One consequence worth knowing: with a $20 ceiling, a stock trading above
-~$20/share can't buy even one whole share (fractional orders are
-avoided — see Team S below) and will always skip with "buys less than
-one whole share." On a small account, scanning ~75 symbols is partly
-a way of finding the handful that are actually affordable, not an
-expectation that most of them will trade. Raise `--max-position-usd`
-(or your account's equity) if you want the pricier names in the
-watchlist to be reachable.
+**A $20/10% pair was tried first and turned out too conservative.** On a
+live $200 account scanning the full watchlist, it capped every position
+at $5 (25% of $20) — enough to prove the safety logic worked (nothing
+overspent, nothing crashed) but not enough to buy a whole share of
+almost anything in a large/mid-cap watchlist, so all 45 approved theses
+in that run were skipped and zero trades executed. `$50`/`25%` (→ ~$12.50
+realistic ceiling) is the current default as a result — still small
+relative to $200, but able to reach more of the cheaper names.
+
+One consequence remains true regardless of the exact numbers: a stock
+priced above the realistic per-trade ceiling can't buy even one whole
+share (fractional orders are avoided — see Team S below) and will
+always skip with "buys less than one whole share." On a small account,
+scanning ~75 symbols is partly a way of finding the handful that are
+actually affordable, not an expectation that most of them will trade.
+Raise `--max-position-usd` / `--max-position-pct` (or your account's
+equity) further if you want the pricier names in the watchlist to be
+reachable — and expect to trade off "more trades fill" against "each
+one that does risks more."
 
 ### 3. Automatically, on a schedule
 
@@ -353,5 +364,6 @@ Worth being clear about, since this trades real (paper) money:
   and each additional symbol also means more Reddit API calls in the
   same run, which risks rate-limiting on a large watchlist.
 - **Whole-share sizing means a low dollar ceiling can't reach
-  higher-priced stocks.** A $20 cap simply can't buy one share of a
-  $650 stock; that scan will always skip, by design.
+  higher-priced stocks.** A ~$12.50 realistic per-trade ceiling on a
+  $200 account simply can't buy one share of a $650 stock; that scan
+  will always skip, by design.

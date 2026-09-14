@@ -63,12 +63,18 @@ DEFAULT_WATCHLIST = [
 #      eat a large slice of a small account regardless of its equity, and
 #   2. a percentage of current equity (MAX_POSITION_PCT), so sizing scales
 #      down automatically if the account shrinks.
-# On a $200 account with the defaults below, that's min($20, $20) = $20 per
-# position -- small enough that a handful of approved theses in the same
-# batch still fit inside the account, and Team S's live buying-power check
-# (agents/team_s_execution.py) is the backstop if they don't.
-DEFAULT_MAX_POSITION_USD = 20.0
-DEFAULT_MAX_POSITION_PCT = 0.10
+# On a $200 account with the defaults below, that's min($50, $50) = $50 per
+# position, and Team A's own half-Kelly cap (capped at 25% of that -- see
+# agents/team_a_strategy.py's MAX_POSITION_FRACTION) brings the realistic
+# ceiling on any single trade down further to about $12.50. A $20/10% pair
+# was tried first and turned out too conservative -- on a $200 account it
+# capped every trade at $5, which can't buy a whole share of nearly
+# anything in a large/mid-cap watchlist, so every approved thesis got
+# skipped. This still leaves Team S's live buying-power check
+# (agents/team_s_execution.py) as the backstop against overrunning what's
+# actually left to spend.
+DEFAULT_MAX_POSITION_USD = 50.0
+DEFAULT_MAX_POSITION_PCT = 0.25
 
 
 def _try_get_account_info() -> dict | None:
