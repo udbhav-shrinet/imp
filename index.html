@@ -9,6 +9,7 @@
     color-scheme: light;
     --page:           #f9f9f7;
     --surface-1:      #fcfcfb;
+    --surface-2:      #f2f1ed;
     --text-primary:   #0b0b0b;
     --text-secondary: #52514e;
     --text-muted:     #898781;
@@ -16,16 +17,20 @@
     --baseline:       #c3c2b7;
     --border:         rgba(11,11,11,0.10);
     --series-1:       #2a78d6;
-    --series-2:       #eb6834;
+    --series-neg:     #d03b3b;
     --good:           #0ca30c;
+    --good-text:      #006300;
     --critical:       #d03b3b;
     --warning:        #fab219;
+    /* ordinal ramp (light: steps 250/350/450/550) */
+    --ord-1: #86b6ef; --ord-2: #5598e7; --ord-3: #2a78d6; --ord-4: #1c5cab;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       color-scheme: dark;
       --page:           #0d0d0d;
       --surface-1:      #1a1a19;
+      --surface-2:      #232322;
       --text-primary:   #ffffff;
       --text-secondary: #c3c2b7;
       --text-muted:     #898781;
@@ -33,16 +38,19 @@
       --baseline:       #383835;
       --border:         rgba(255,255,255,0.10);
       --series-1:       #3987e5;
-      --series-2:       #d95926;
+      --series-neg:     #e66767;
       --good:           #0ca30c;
+      --good-text:      #0ca30c;
       --critical:       #e66767;
       --warning:        #fab219;
+      --ord-1: #9ec5f4; --ord-2: #6da7ec; --ord-3: #3987e5; --ord-4: #256abf;
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
     --page:           #0d0d0d;
     --surface-1:      #1a1a19;
+    --surface-2:      #232322;
     --text-primary:   #ffffff;
     --text-secondary: #c3c2b7;
     --text-muted:     #898781;
@@ -50,118 +58,195 @@
     --baseline:       #383835;
     --border:         rgba(255,255,255,0.10);
     --series-1:       #3987e5;
-    --series-2:       #d95926;
+    --series-neg:     #e66767;
     --good:           #0ca30c;
+    --good-text:      #0ca30c;
     --critical:       #e66767;
     --warning:        #fab219;
+    --ord-1: #9ec5f4; --ord-2: #6da7ec; --ord-3: #3987e5; --ord-4: #256abf;
   }
 
   * { box-sizing: border-box; }
   body {
     margin: 0;
-    padding: 24px 16px 48px;
+    padding: 28px 20px 56px;
     background: var(--page);
     color: var(--text-primary);
-    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    font: 14px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 1160px; margin: 0 auto; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
 
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  .subtitle { color: var(--text-secondary); margin: 0 0 20px; }
+  header.masthead { margin-bottom: 20px; }
+  h1 { font-size: 21px; margin: 0 0 3px; letter-spacing: -0.01em; }
+  .subtitle { color: var(--text-secondary); margin: 0; font-size: 13.5px; }
 
+  /* ---------- tabs ---------- */
   .tabs {
-    display: flex; flex-wrap: wrap; gap: 6px;
+    display: flex; flex-wrap: wrap; gap: 2px;
     border-bottom: 1px solid var(--gridline);
-    margin-bottom: 20px;
-    padding-bottom: 0;
+    margin-bottom: 16px;
   }
   .tab-btn {
     appearance: none; border: none; background: transparent;
     color: var(--text-secondary); font: inherit; font-weight: 600; font-size: 13px;
-    padding: 10px 14px; cursor: pointer; border-radius: 8px 8px 0 0;
+    padding: 9px 14px; cursor: pointer;
     border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color .12s;
   }
-  .tab-btn:hover { color: var(--text-primary); background: var(--surface-1); }
+  .tab-btn:hover { color: var(--text-primary); }
   .tab-btn.active { color: var(--series-1); border-bottom-color: var(--series-1); }
 
-  .kpis {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 12px;
+  /* ---------- filter row ---------- */
+  .filters {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     margin-bottom: 20px;
   }
-  .kpi {
+  .filters label { color: var(--text-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  select {
+    appearance: none; font: inherit; font-size: 13px;
+    background: var(--surface-1); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 7px;
+    padding: 6px 30px 6px 10px; cursor: pointer;
+    background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+    background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%;
+    background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+  }
+  .filter-meta { color: var(--text-muted); font-size: 12px; margin-left: auto; }
+
+  /* ---------- hero + tiles ---------- */
+  .hero-row {
+    display: grid; grid-template-columns: minmax(230px, 1.1fr) 3fr; gap: 14px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 720px) { .hero-row { grid-template-columns: 1fr; } }
+
+  .card {
     background: var(--surface-1);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px 16px;
+    border-radius: 12px;
+    padding: 16px 18px;
   }
-  .kpi .label { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
-  .kpi .value { font-size: 20px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
-  .kpi .value.good { color: var(--good); }
-  .kpi .value.critical { color: var(--critical); }
+  .card.chart { padding: 16px 18px 12px; }
 
+  .hero .label { color: var(--text-muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; }
+  .hero .figure { font-size: 40px; font-weight: 650; line-height: 1.15; margin-top: 6px; letter-spacing: -0.02em; }
+  .hero .delta { font-size: 13.5px; font-weight: 600; margin-top: 2px; }
+  .hero .delta.up { color: var(--good-text); }
+  .hero .delta.down { color: var(--critical); }
+  .hero .delta.flat { color: var(--text-muted); }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; }
+  .tile {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .tile .label { color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  .tile .value { font-size: 21px; font-weight: 620; margin-top: 3px; letter-spacing: -0.01em; }
+  .tile .sub { color: var(--text-muted); font-size: 11.5px; margin-top: 1px; }
+
+  /* ---------- panels ---------- */
   .panel {
     background: var(--surface-1);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px;
-    margin-bottom: 20px;
-    overflow-x: auto;
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 14px;
   }
-  .panel h2 { font-size: 14px; margin: 0 0 12px; color: var(--text-secondary); font-weight: 600; }
-  .panel p.note { color: var(--text-muted); font-size: 12px; margin: 0 0 12px; }
+  .panel > h2 { font-size: 13.5px; margin: 0; font-weight: 650; letter-spacing: -0.005em; }
+  .panel > p.note { color: var(--text-muted); font-size: 12px; margin: 3px 0 14px; }
+  .panel > h2 + .scroll, .panel > h2 + svg { margin-top: 14px; }
+  .scroll { overflow-x: auto; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 860px) { .grid-2 { grid-template-columns: 1fr; } }
 
-  svg text { fill: var(--text-muted); font-size: 11px; }
-  .chart-line { fill: none; stroke: var(--series-1); stroke-width: 2; }
-  .chart-grid { stroke: var(--gridline); stroke-width: 1; }
-  .chart-baseline { stroke: var(--baseline); stroke-width: 1; }
-  .crosshair { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 3 3; display: none; }
-  .hover-dot { fill: var(--series-1); display: none; }
+  /* ---------- chart primitives ---------- */
+  svg { display: block; width: 100%; height: auto; }
+  .ax-text { fill: var(--text-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+  .ax-text.sym { fill: var(--text-secondary); font-size: 11px; font-weight: 600; font-variant-numeric: normal; }
+  .val-text { fill: var(--text-secondary); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+  .ref-text { fill: var(--text-muted); font-size: 10px; }
+  .grid-line { stroke: var(--gridline); stroke-width: 1; }
+  .axis-line { stroke: var(--baseline); stroke-width: 1; }
+  .ref-line { stroke: var(--baseline); stroke-width: 1; }
+  .line-mark { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .area-mark { fill: var(--series-1); opacity: 0.10; }
+  .end-dot { fill: var(--series-1); stroke: var(--surface-1); stroke-width: 2; }
+  .bar { fill: var(--series-1); }
+  .bar.neg { fill: var(--series-neg); }
+  .crosshair { stroke: var(--text-muted); stroke-width: 1; display: none; }
+  .hover-dot { fill: var(--series-1); stroke: var(--surface-1); stroke-width: 2; display: none; }
+  .hit { fill: transparent; }
+
   .tooltip {
-    position: absolute; pointer-events: none; display: none;
-    background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px;
-    padding: 6px 10px; font-size: 12px; color: var(--text-primary); white-space: nowrap;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 10;
+    position: fixed; pointer-events: none; display: none; z-index: 50;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 11px; font-size: 12px; color: var(--text-primary); white-space: nowrap;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.18);
   }
+  .tooltip .tt-val { font-weight: 650; }
+  .tooltip .tt-sub { color: var(--text-muted); font-size: 11.5px; }
 
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 640px; }
-  th, td { text-align: left; padding: 7px 9px; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
-  th { color: var(--text-muted); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+  /* ---------- tables ---------- */
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 660px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
+  th {
+    color: var(--text-muted); font-weight: 650; font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: .04em;
+    position: sticky; top: 0; background: var(--surface-1);
+  }
+  td.num { font-variant-numeric: tabular-nums; }
   tr:last-child td { border-bottom: none; }
-  td.wrap-cell { white-space: normal; max-width: 260px; }
+  td.wrap-cell { white-space: normal; max-width: 280px; }
+  tbody tr:hover td { background: var(--surface-2); }
 
   .badge {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 650;
   }
-  .badge.good { color: var(--good); background: color-mix(in srgb, var(--good) 15%, transparent); }
-  .badge.critical { color: var(--critical); background: color-mix(in srgb, var(--critical) 15%, transparent); }
-  .badge.muted { color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 15%, transparent); }
+  .badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge.good { color: var(--good-text); background: color-mix(in srgb, var(--good) 14%, transparent); }
+  .badge.critical { color: var(--critical); background: color-mix(in srgb, var(--critical) 14%, transparent); }
+  .badge.muted { color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 14%, transparent); }
+  .dir { font-weight: 650; }
+  .dir.long { color: var(--good-text); }
+  .dir.short { color: var(--critical); }
+  .dir.none { color: var(--text-muted); font-weight: 500; }
 
-  .empty { text-align: center; padding: 48px 16px; color: var(--text-secondary); }
-  .empty code { background: var(--gridline); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin: 0 0 6px; }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 12px; }
+  .legend-item .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 
-  footer { color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 8px; }
+  .empty { text-align: center; padding: 56px 16px; color: var(--text-secondary); }
+  .empty code { background: var(--surface-2); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  .nodata { color: var(--text-muted); font-size: 12px; padding: 18px 0; }
+
+  footer { color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 18px; }
+  #content.stale { opacity: .55; transition: opacity .15s; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Trading Pipeline Dashboard</h1>
-  <p class="subtitle">Team C &rarr; Team B &rarr; Team A &rarr; Team S. Paper trading only.</p>
+  <header class="masthead">
+    <h1>Trading Pipeline Dashboard</h1>
+    <p class="subtitle">Team C &rarr; Team B &rarr; Team A &rarr; Team S &middot; Alpaca paper trading</p>
+  </header>
 
   <div class="tabs" id="tabs">
-    <button class="tab-btn active" data-tab="main">Main</button>
-    <button class="tab-btn" data-tab="teamc">Team C &middot; Data &amp; Signals</button>
+    <button class="tab-btn active" data-tab="main">Overview</button>
+    <button class="tab-btn" data-tab="teamc">Team C &middot; Signals</button>
     <button class="tab-btn" data-tab="teamb">Team B &middot; Quants</button>
-    <button class="tab-btn" data-tab="teama">Team A &middot; Strategy &amp; Risk</button>
+    <button class="tab-btn" data-tab="teama">Team A &middot; Risk</button>
     <button class="tab-btn" data-tab="teams">Team S &middot; Execution</button>
   </div>
 
-  <div id="content">
-    <div class="empty">Loading run history&hellip;</div>
+  <div class="filters">
+    <label for="symbol-filter">Symbol</label>
+    <select id="symbol-filter"><option value="ALL">All symbols</option></select>
+    <span class="filter-meta" id="filter-meta"></span>
   </div>
 
+  <div id="content"><div class="empty">Loading run history&hellip;</div></div>
   <footer id="footer"></footer>
 </div>
 <div class="tooltip" id="tooltip"></div>
@@ -169,389 +254,763 @@
 <script>
 const HISTORY_URL = './logs/history.json';
 const REFRESH_MS = 60000;
-const ROW_LIMIT = 150;
+const ROW_LIMIT = 200;
+const VAR_LIMIT = 0.05;        // Risker's veto threshold, mirrors team_a_strategy.py
+const LONG_THRESHOLD = 0.55;   // mirrors form_trade_thesis()
+const SHORT_THRESHOLD = 0.45;
 
 let historyData = [];
 let activeTab = 'main';
-let lastEquityPoints = [];
+let symbolFilter = 'ALL';
+let hoverPoints = [];
 
-function fmtMoney(n) {
-  if (n === null || n === undefined || Number.isNaN(n)) return '—';
-  return '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+/* ------------------------------------------------------------ formatting */
+
+function fmtMoney(n, digits) {
+  if (n === null || n === undefined || Number.isNaN(Number(n))) return '—';
+  const v = Number(n);
+  // Sign goes outside the currency symbol: -$0.32, never $-0.32.
+  return (v < 0 ? '-' : '') + '$' + Math.abs(v).toLocaleString(undefined, {
+    minimumFractionDigits: digits === undefined ? 0 : digits,
+    maximumFractionDigits: digits === undefined ? 2 : digits,
+  });
+}
+function fmtCompactMoney(n) {
+  if (n === null || n === undefined || Number.isNaN(Number(n))) return '—';
+  const v = Number(n), a = Math.abs(v), sign = v < 0 ? '-' : '';
+  if (a >= 1e6) return sign + '$' + (a / 1e6).toFixed(2) + 'M';
+  if (a >= 1e4) return sign + '$' + (a / 1e3).toFixed(1) + 'K';
+  return sign + '$' + a.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+/**
+ * Axis ticks must differentiate. A near-flat equity curve spanning a few
+ * dollars renders every compact tick as the same "$100.0K", so precision
+ * follows the domain span rather than the magnitude.
+ */
+function moneyAxisFormat(span) {
+  if (span < 100) return v => '$' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (span < 20000) return v => '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  return fmtCompactMoney;
+}
+/** Include the time of day when the whole series fits inside ~a day. */
+function timeAxisFormat(series) {
+  const span = new Date(series[series.length - 1].t) - new Date(series[0].t);
+  const opts = span < 864e5
+    ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+    : { month: 'short', day: 'numeric' };
+  return iso => new Date(iso).toLocaleString(undefined, opts);
 }
 function fmtNum(n, digits) {
-  if (n === null || n === undefined || Number.isNaN(n)) return '—';
+  if (n === null || n === undefined || Number.isNaN(Number(n))) return '—';
   return Number(n).toFixed(digits === undefined ? 2 : digits);
 }
-function fmtPct(n) {
-  if (n === null || n === undefined || Number.isNaN(n)) return '—';
-  return (Number(n) * 100).toFixed(1) + '%';
+function fmtPct(n, digits) {
+  if (n === null || n === undefined || Number.isNaN(Number(n))) return '—';
+  return (Number(n) * 100).toFixed(digits === undefined ? 1 : digits) + '%';
+}
+function fmtSignedPct(n) {
+  if (n === null || n === undefined || Number.isNaN(Number(n))) return '—';
+  const v = Number(n) * 100;
+  // Keep enough precision that a real-but-tiny move never prints as "0.00%".
+  const digits = v !== 0 && Math.abs(v) < 0.01 ? 4 : 2;
+  return (v > 0 ? '+' : '') + v.toFixed(digits) + '%';
 }
 function fmtTime(iso) {
   if (!iso) return '—';
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function fmtDay(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit' });
+}
+function relTime(iso) {
+  const secs = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (secs < 90) return 'just now';
+  if (secs < 5400) return Math.round(secs / 60) + 'm ago';
+  if (secs < 129600) return Math.round(secs / 3600) + 'h ago';
+  return Math.round(secs / 86400) + 'd ago';
 }
 function esc(s) {
-  return String(s === null || s === undefined ? '' : s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  return String(s === null || s === undefined ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
-function statusBadge(text, kind) {
-  return `<span class="badge ${kind}">${esc(text)}</span>`;
+function badge(text, kind) { return `<span class="badge ${kind}">${esc(text)}</span>`; }
+function dirCell(d) {
+  const cls = d === 'long' ? 'long' : d === 'short' ? 'short' : 'none';
+  return `<span class="dir ${cls}">${esc(d === 'no_trade' || !d ? '—' : d)}</span>`;
 }
-function recent(list) {
-  return list.slice().reverse().slice(0, ROW_LIMIT);
+
+/* --------------------------------------------------------- data shaping */
+
+function filtered() {
+  return symbolFilter === 'ALL' ? historyData : historyData.filter(r => r.symbol === symbolFilter);
 }
+function recent(list) { return list.slice().reverse().slice(0, ROW_LIMIT); }
+
+/** Latest record per symbol — what the per-symbol comparison charts plot. */
+function latestPerSymbol(rows) {
+  const bySym = new Map();
+  for (const r of rows) {
+    const prev = bySym.get(r.symbol);
+    if (!prev || r.run_at > prev.run_at) bySym.set(r.symbol, r);
+  }
+  return [...bySym.values()].sort((a, b) => a.symbol.localeCompare(b.symbol));
+}
+
+/* ------------------------------------------------------ chart primitives */
+
+function niceTicks(min, max, count) {
+  count = count || 4;
+  if (!(max > min)) { const c = min || 0; return [c - 1, c, c + 1]; }
+  const raw = (max - min) / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const norm = raw / mag;
+  const step = (norm >= 5 ? 10 : norm >= 2 ? 5 : norm >= 1 ? 2 : 1) * mag;
+  const start = Math.floor(min / step) * step;
+  const ticks = [];
+  for (let v = start; v <= max + step * 0.5; v += step) ticks.push(Number(v.toFixed(10)));
+  return ticks;
+}
+
+/** Bar path with a 4px rounded data-end, square at the baseline. */
+function barPath(x, y, w, h, side) {
+  const r = Math.min(4, Math.max(0, w / 2));
+  if (w <= 0.5) return '';
+  if (side === 'left') {
+    return `M${x + w},${y} H${x + r} Q${x},${y} ${x},${y + r} V${y + h - r} Q${x},${y + h} ${x + r},${y + h} H${x + w} Z`;
+  }
+  return `M${x},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h - r} Q${x + w},${y + h} ${x + w - r},${y + h} H${x} Z`;
+}
+
+/**
+ * Horizontal bar chart. rows: [{label, value, negative?, display}].
+ * refLines: [{value, label}] drawn as solid hairlines with a caption.
+ */
+function hBarChart(rows, opts) {
+  opts = opts || {};
+  if (!rows.length) return '<p class="nodata">No data for this selection.</p>';
+  // SVG text is sized in viewBox units, so a 1000-unit chart squeezed into a
+  // half-width card renders its labels at ~half size and becomes unreadable.
+  // Compact charts get a narrower viewBox so text keeps its apparent size.
+  const compact = !!opts.compact;
+  const W = compact ? 520 : 1000;
+  const LEFT = compact ? 56 : 66;
+  const RIGHT = compact ? 64 : 76;
+  const TOP = 22, ROW_H = compact ? 26 : 30, BAR_H = compact ? 16 : 20;
+  const H = TOP + rows.length * ROW_H + 26;
+  const plotW = W - LEFT - RIGHT;
+
+  const values = rows.map(r => r.value).filter(v => typeof v === 'number' && !Number.isNaN(v));
+  const refVals = (opts.refLines || []).map(r => r.value);
+  let lo = Math.min(0, ...values, ...refVals);
+  let hi = Math.max(0, ...values, ...refVals);
+  if (opts.domain) { lo = opts.domain[0]; hi = opts.domain[1]; }
+  if (hi === lo) hi = lo + 1;
+  const pad = (hi - lo) * 0.08;
+  hi += pad; if (lo < 0) lo -= pad;
+
+  const x = v => LEFT + ((v - lo) / (hi - lo)) * plotW;
+  const zeroX = x(0);
+  const ticks = niceTicks(lo, hi, 4);
+
+  const grid = ticks.map(t => `<line class="grid-line" x1="${x(t).toFixed(1)}" x2="${x(t).toFixed(1)}" y1="${TOP - 6}" y2="${TOP + rows.length * ROW_H}" />`).join('');
+  const tickText = ticks.map(t =>
+    `<text class="ax-text" x="${x(t).toFixed(1)}" y="${TOP + rows.length * ROW_H + 16}" text-anchor="middle">${opts.tickFormat ? opts.tickFormat(t) : t}</text>`
+  ).join('');
+
+  const refs = (opts.refLines || []).map(r => `
+    <line class="ref-line" x1="${x(r.value).toFixed(1)}" x2="${x(r.value).toFixed(1)}" y1="${TOP - 10}" y2="${TOP + rows.length * ROW_H}" />
+    <text class="ref-text" x="${x(r.value).toFixed(1)}" y="${TOP - 14}" text-anchor="middle">${esc(r.label)}</text>
+  `).join('');
+
+  const bars = rows.map((r, i) => {
+    const y = TOP + i * ROW_H + (ROW_H - BAR_H) / 2;
+    const v = typeof r.value === 'number' && !Number.isNaN(r.value) ? r.value : 0;
+    const isNeg = r.negative !== undefined ? r.negative : v < 0;
+    const bx = v < 0 ? x(v) : zeroX;
+    const bw = Math.abs(x(v) - zeroX);
+    const path = barPath(bx, y, bw, BAR_H, v < 0 ? 'left' : 'right');
+    const labelX = v < 0 ? bx - 6 : bx + bw + 6;
+    const anchor = v < 0 ? 'end' : 'start';
+    return `
+      <g class="bar-row" data-label="${esc(r.label)}" data-value="${esc(r.display !== undefined ? r.display : v)}" data-note="${esc(r.note || '')}">
+        <text class="ax-text sym" x="${LEFT - 10}" y="${y + BAR_H / 2 + 4}" text-anchor="end">${esc(r.label)}</text>
+        <path class="bar${isNeg ? ' neg' : ''}" d="${path}" />
+        <text class="val-text" x="${labelX.toFixed(1)}" y="${y + BAR_H / 2 + 4}" text-anchor="${anchor}">${esc(r.display !== undefined ? r.display : fmtNum(v))}</text>
+        <rect class="hit" x="${LEFT}" y="${TOP + i * ROW_H}" width="${plotW}" height="${ROW_H}" />
+      </g>`;
+  }).join('');
+
+  const legend = (opts.legend || []).length
+    ? `<div class="legend">${opts.legend.map(l => `<span class="legend-item"><span class="swatch" style="background:${l.color}"></span>${esc(l.label)}</span>`).join('')}</div>`
+    : '';
+
+  return `${legend}<svg viewBox="0 0 ${W} ${H}" role="img">
+    ${grid}${refs}
+    <line class="axis-line" x1="${zeroX.toFixed(1)}" x2="${zeroX.toFixed(1)}" y1="${TOP - 6}" y2="${TOP + rows.length * ROW_H}" />
+    ${bars}${tickText}
+  </svg>`;
+}
+
+/** Equity line chart with axes, area wash, endpoint label and hover crosshair. */
+function equityChart(series) {
+  if (series.length < 2) {
+    return '<p class="nodata">Waiting on more account snapshots — the curve needs at least two runs with Alpaca credentials configured.</p>';
+  }
+  const W = 1000, H = 260, R = 84, T = 18, B = 34;
+  const vals = series.map(s => s.equity);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (hi === lo) { lo -= 1; hi += 1; }
+  const pad = (hi - lo) * 0.18;
+  lo -= pad; hi += pad;
+  const ticks = niceTicks(lo, hi, 4);
+  lo = Math.min(lo, ticks[0]); hi = Math.max(hi, ticks[ticks.length - 1]);
+  const tickFmt = moneyAxisFormat(ticks[ticks.length - 1] - ticks[0]);
+  const timeFmt = timeAxisFormat(series);
+
+  // Size the left gutter to the widest tick label, or a long one ($100,000.00)
+  // gets clipped by a fixed gutter.
+  const widestTick = Math.max(...ticks.map(t => tickFmt(t).length));
+  const L = Math.max(52, 18 + widestTick * 6.4);
+  const plotW = W - L - R, plotH = H - T - B;
+
+  const x = i => L + (series.length === 1 ? plotW / 2 : (i / (series.length - 1)) * plotW);
+  const y = v => T + plotH - ((v - lo) / (hi - lo)) * plotH;
+
+  const pts = series.map((s, i) => ({ x: x(i), y: y(s.equity), t: s.t, equity: s.equity }));
+  hoverPoints = pts;
+
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+  const area = `${line} L${pts[pts.length - 1].x.toFixed(1)},${(T + plotH).toFixed(1)} L${pts[0].x.toFixed(1)},${(T + plotH).toFixed(1)} Z`;
+
+  const grid = ticks.map(t => `
+    <line class="grid-line" x1="${L}" x2="${L + plotW}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" />
+    <text class="ax-text" x="${L - 10}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end">${esc(tickFmt(t))}</text>`).join('');
+
+  const labelIdx = [0, Math.floor((series.length - 1) / 2), series.length - 1].filter((v, i, a) => a.indexOf(v) === i);
+  const xLabels = labelIdx.map(i =>
+    `<text class="ax-text" x="${x(i).toFixed(1)}" y="${H - 12}" text-anchor="${i === 0 ? 'start' : i === series.length - 1 ? 'end' : 'middle'}">${esc(timeFmt(series[i].t))}</text>`
+  ).join('');
+
+  const last = pts[pts.length - 1];
+  return `<svg viewBox="0 0 ${W} ${H}" id="equity-svg" role="img">
+    ${grid}
+    <line class="axis-line" x1="${L}" x2="${L + plotW}" y1="${T + plotH}" y2="${T + plotH}" />
+    <path class="area-mark" d="${area}" />
+    <path class="line-mark" d="${line}" />
+    <line class="crosshair" id="crosshair" x1="0" x2="0" y1="${T}" y2="${T + plotH}" />
+    <circle class="end-dot" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="4.5" />
+    <text class="val-text" x="${(last.x + 10).toFixed(1)}" y="${(last.y + 4).toFixed(1)}" text-anchor="start">${esc(tickFmt(last.equity))}</text>
+    <circle class="hover-dot" id="hover-dot" r="4.5" />
+    ${xLabels}
+    <rect class="hit" id="hover-target" x="${L}" y="${T}" width="${plotW}" height="${plotH}" />
+  </svg>`;
+}
+
+/** Ordered decision funnel — ordinal ramp, direct-labelled. */
+function funnelChart(stages) {
+  const W = 1000, LEFT = 118, TOP = 10, ROW_H = 40, BAR_H = 22;
+  const H = TOP + stages.length * ROW_H;
+  const max = Math.max(...stages.map(s => s.value), 1);
+  const plotW = W - LEFT - 150;
+  const ramp = ['var(--ord-1)', 'var(--ord-2)', 'var(--ord-3)', 'var(--ord-4)'];
+
+  const rows = stages.map((s, i) => {
+    const y = TOP + i * ROW_H + (ROW_H - BAR_H) / 2;
+    const w = (s.value / max) * plotW;
+    const pct = stages[0].value ? s.value / stages[0].value : 0;
+    return `
+      <g>
+        <text class="ax-text sym" x="${LEFT - 12}" y="${y + BAR_H / 2 + 4}" text-anchor="end">${esc(s.label)}</text>
+        <path d="${barPath(LEFT, y, w, BAR_H, 'right')}" fill="${ramp[Math.min(i, ramp.length - 1)]}" />
+        <text class="val-text" x="${(LEFT + w + 10).toFixed(1)}" y="${y + BAR_H / 2 + 4}">${s.value} <tspan class="ax-text">(${(pct * 100).toFixed(0)}% of scans)</tspan></text>
+      </g>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" role="img">${rows}</svg>`;
+}
+
+/* ------------------------------------------------------------- overview */
+
+function buildEquitySeries(rows) {
+  return rows
+    .filter(r => r.account && typeof r.account.equity === 'number')
+    .map(r => ({ t: r.run_at, equity: r.account.equity }));
+}
+
+function renderMainTab(rows) {
+  const executed = rows.filter(r => r.execution_result?.executed);
+  const approved = rows.filter(r => r.team_a_report?.approved);
+  const theses = rows.filter(r => r.team_a_report?.direction && r.team_a_report.direction !== 'no_trade');
+  const longs = executed.filter(r => r.execution_result.side === 'buy').length;
+  const shorts = executed.filter(r => r.execution_result.side === 'sell').length;
+  const symbols = new Set(rows.map(r => r.symbol));
+
+  // Equity is account-level, so it always spans the whole history regardless of
+  // the symbol filter — filtering it by symbol would just resample the same curve.
+  const series = buildEquitySeries(historyData);
+  const first = series[0]?.equity, last = series[series.length - 1]?.equity;
+  const change = (first && last) ? last - first : null;
+  const changePct = (first && last) ? (last - first) / first : null;
+  const dirClass = change === null ? 'flat' : change > 0 ? 'up' : change < 0 ? 'down' : 'flat';
+  const deltaText = change === null ? 'no account data yet'
+    : `${change >= 0 ? '+' : ''}${fmtMoney(change, 2)} (${fmtSignedPct(changePct)}) since first run`;
+
+  const funnel = funnelChart([
+    { label: 'Symbols scanned', value: rows.length },
+    { label: 'Thesis formed', value: theses.length },
+    { label: 'Risk-approved', value: approved.length },
+    { label: 'Orders placed', value: executed.length },
+  ]);
+
+  const tradeRows = recent(executed).map(r => {
+    const e = r.execution_result;
+    return `<tr>
+      <td>${fmtTime(r.run_at)}</td>
+      <td><strong>${esc(r.symbol)}</strong></td>
+      <td>${e.side === 'buy' ? '<span class="dir long">buy</span>' : '<span class="dir short">sell</span>'}</td>
+      <td class="num">${e.total_qty ?? '—'}</td>
+      <td class="num">${fmtMoney(e.reference_price, 2)}</td>
+      <td class="num">${fmtMoney((e.total_qty || 0) * (e.reference_price || 0), 2)}</td>
+      <td class="num">${(e.child_orders || []).length}</td>
+    </tr>`;
+  }).join('');
+
+  const scanRows = recent(rows).map(r => {
+    const a = r.team_a_report || {};
+    const e = r.execution_result;
+    const status = a.approved ? badge('approved', 'good')
+      : badge(a.direction === 'no_trade' ? 'no edge' : 'vetoed', a.direction === 'no_trade' ? 'muted' : 'critical');
+    const ex = !e ? badge('dry run', 'muted') : e.executed ? badge('filled', 'good') : badge('skipped', 'muted');
+    return `<tr>
+      <td>${fmtTime(r.run_at)}</td>
+      <td><strong>${esc(r.symbol)}</strong></td>
+      <td class="num">${fmtPct((r.team_b?.ml_engineer || {}).probability_up_next_day)}</td>
+      <td>${dirCell(a.direction)}</td>
+      <td>${status}</td>
+      <td class="num">${a.position_size_usd ? fmtMoney(a.position_size_usd, 2) : '—'}</td>
+      <td>${ex}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="hero-row">
+      <div class="card hero">
+        <div class="label">Account equity</div>
+        <div class="figure">${fmtMoney(last)}</div>
+        <div class="delta ${dirClass}">${esc(deltaText)}</div>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="label">Scans</div><div class="value">${rows.length}</div><div class="sub">${symbols.size} symbols</div></div>
+        <div class="tile"><div class="label">Approved</div><div class="value">${approved.length}</div><div class="sub">${rows.length ? Math.round(approved.length / rows.length * 100) : 0}% of scans</div></div>
+        <div class="tile"><div class="label">Orders</div><div class="value">${executed.length}</div><div class="sub">${longs} long / ${shorts} short</div></div>
+        <div class="tile"><div class="label">Capital deployed</div><div class="value">${fmtCompactMoney(executed.reduce((s, r) => s + (r.execution_result.total_qty || 0) * (r.execution_result.reference_price || 0), 0))}</div><div class="sub">at reference price</div></div>
+      </div>
+    </div>
+
+    <div class="panel chart">
+      <h2>Account equity over time</h2>
+      <p class="note">Account-level, so it always spans the full history regardless of the symbol filter. Hover for values.</p>
+      ${equityChart(series)}
+    </div>
+
+    <div class="panel chart">
+      <h2>Decision funnel</h2>
+      <p class="note">Where the pipeline filters candidates out — every stage is a gate the one above it had to clear.</p>
+      ${funnel}
+    </div>
+
+    <div class="panel">
+      <h2>Orders placed</h2>
+      <p class="note">Only scans where Team S actually submitted to the broker.</p>
+      <div class="scroll">${tradeRows ? `<table>
+        <thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Ref. price</th><th>Notional</th><th>Child orders</th></tr></thead>
+        <tbody>${tradeRows}</tbody></table>` : '<p class="nodata">No orders placed yet for this selection.</p>'}</div>
+    </div>
+
+    <div class="panel">
+      <h2>All scans</h2>
+      <p class="note">Every symbol evaluated, most recent first — including the ones that were filtered out.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Time</th><th>Symbol</th><th>P(up)</th><th>Thesis</th><th>Team A</th><th>Size</th><th>Team S</th></tr></thead>
+        <tbody>${scanRows}</tbody></table></div>
+    </div>`;
+}
+
+/* --------------------------------------------------------------- Team C */
+
+function renderTeamCTab(rows) {
+  const latest = latestPerSymbol(rows);
+
+  const rsiRows = latest
+    .filter(r => typeof r.team_c?.statistics?.rsi_14 === 'number')
+    .map(r => {
+      const v = r.team_c.statistics.rsi_14;
+      return { label: r.symbol, value: v, display: fmtNum(v, 1), negative: false };
+    });
+
+  const sentRows = latest
+    .filter(r => typeof r.team_c?.sentiment?.mean_compound === 'number')
+    .map(r => {
+      const v = r.team_c.sentiment.mean_compound;
+      return { label: r.symbol, value: v, display: fmtNum(v, 2) };
+    });
+
+  // Symmetric around zero (it's a diverging scale) but fitted to the observed
+  // range -- a fixed [-1,1] domain squashes real scores into unreadable stubs.
+  const sentBound = Math.max(0.2, Math.ceil(Math.max(0, ...sentRows.map(r => Math.abs(r.value))) * 10) / 10);
+
+  const tableRows = recent(rows).map(r => {
+    const c = r.team_c || {}, s = c.statistics || {}, sent = c.sentiment || {};
+    return `<tr>
+      <td>${fmtTime(r.run_at)}</td>
+      <td><strong>${esc(r.symbol)}</strong></td>
+      <td class="num">${fmtMoney(c.last_close, 2)}</td>
+      <td class="num">${fmtNum(s.rsi_14, 1)}</td>
+      <td class="num">${fmtNum(s.sma_20, 2)}</td>
+      <td class="num">${fmtNum(s.z_score_20, 2)}</td>
+      <td class="num">${fmtNum(s.atr_14, 2)}</td>
+      <td class="num">${fmtNum(s.lower_band, 1)} – ${fmtNum(s.upper_band, 1)}</td>
+      <td class="num">${fmtNum(sent.mean_compound, 2)}</td>
+      <td class="num">${sent.reddit_post_count ?? 0} / ${sent.news_article_count ?? 0}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="grid-2">
+      <div class="panel chart">
+        <h2>RSI (14) by symbol</h2>
+        <p class="note">Latest reading per symbol. Above 70 is overbought, below 30 oversold.</p>
+        ${hBarChart(rsiRows, { compact: true, domain: [0, 100], refLines: [{ value: 30, label: 'oversold 30' }, { value: 70, label: 'overbought 70' }], tickFormat: t => t })}
+      </div>
+      <div class="panel chart">
+        <h2>Sentiment by symbol</h2>
+        <p class="note">Mean VADER compound score across Reddit posts and RSS headlines. Zero is neutral; the scale fits the observed range.</p>
+        ${hBarChart(sentRows, { compact: true, domain: [-sentBound, sentBound], tickFormat: t => t.toFixed(2) })}
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Signal detail</h2>
+      <p class="note">Data Puller, Statistician, Forecaster and Sentiment Analyst output per scan.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Time</th><th>Symbol</th><th>Close</th><th>RSI(14)</th><th>SMA(20)</th><th>Z-score</th><th>ATR(14)</th><th>Bollinger</th><th>Sentiment</th><th>Reddit/News</th></tr></thead>
+        <tbody>${tableRows || '<tr><td colspan="10" class="nodata">No data.</td></tr>'}</tbody></table></div>
+    </div>`;
+}
+
+/* --------------------------------------------------------------- Team B */
+
+function renderTeamBTab(rows) {
+  const latest = latestPerSymbol(rows);
+  const probRows = latest
+    .filter(r => typeof r.team_b?.ml_engineer?.probability_up_next_day === 'number')
+    .map(r => {
+      const v = r.team_b.ml_engineer.probability_up_next_day;
+      return { label: r.symbol, value: v, display: fmtPct(v), negative: v < SHORT_THRESHOLD };
+    });
+
+  const volRows = latest
+    .filter(r => typeof r.team_b?.mathematician?.annualized_volatility === 'number')
+    .map(r => {
+      const v = r.team_b.mathematician.annualized_volatility;
+      return { label: r.symbol, value: v, display: fmtPct(v), negative: false };
+    });
+
+  const regimes = {};
+  latest.forEach(r => {
+    const g = r.team_b?.mathematician?.market_regime || 'unknown';
+    regimes[g] = (regimes[g] || 0) + 1;
+  });
+  const regimeSummary = Object.entries(regimes).map(([k, v]) =>
+    `<div class="tile"><div class="label">${esc(k)}</div><div class="value">${v}</div><div class="sub">symbols</div></div>`).join('');
+
+  const tableRows = recent(rows).map(r => {
+    const m = r.team_b?.mathematician || {}, ou = m.ornstein_uhlenbeck || {}, ml = r.team_b?.ml_engineer || {};
+    return `<tr>
+      <td>${fmtTime(r.run_at)}</td>
+      <td><strong>${esc(r.symbol)}</strong></td>
+      <td>${esc(m.market_regime) || '—'}</td>
+      <td class="num">${fmtPct(m.annualized_drift)}</td>
+      <td class="num">${fmtPct(m.annualized_volatility)}</td>
+      <td class="num">${fmtNum(ou.theta, 3)}</td>
+      <td class="num">${fmtNum(ou.mu, 2)}</td>
+      <td class="num">${fmtPct(ml.probability_up_next_day)}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="panel chart">
+      <h2>P(up next day) by symbol — the ML Engineer's call</h2>
+      <p class="note">Random Forest with walk-forward validation. Team A goes long above ${fmtPct(LONG_THRESHOLD)} and short below ${fmtPct(SHORT_THRESHOLD)}; between those lines it stands down.</p>
+      ${hBarChart(probRows, {
+        domain: [0, 1],
+        legend: [
+          { label: 'at/above the short line', color: 'var(--series-1)' },
+          { label: 'below it — short candidate', color: 'var(--series-neg)' },
+        ],
+        refLines: [{ value: SHORT_THRESHOLD, label: 'short ' + fmtPct(SHORT_THRESHOLD) }, { value: LONG_THRESHOLD, label: 'long ' + fmtPct(LONG_THRESHOLD) }],
+        tickFormat: t => (t * 100).toFixed(0) + '%',
+      })}
+    </div>
+
+    <div class="grid-2">
+      <div class="panel chart">
+        <h2>Annualized volatility by symbol</h2>
+        <p class="note">From the Mathematician's GBM parameter fit — σ scaled to a year.</p>
+        ${hBarChart(volRows, { compact: true, tickFormat: t => (t * 100).toFixed(0) + '%' })}
+      </div>
+      <div class="panel">
+        <h2>Market regime spread</h2>
+        <p class="note">Latest regime classification across the filtered symbols.</p>
+        <div class="tiles">${regimeSummary || '<p class="nodata">No data.</p>'}</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Quant detail</h2>
+      <p class="note">Mathematician (GBM, Ornstein-Uhlenbeck, regime) and ML Engineer output per scan.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Time</th><th>Symbol</th><th>Regime</th><th>Ann. drift</th><th>Ann. vol</th><th>OU θ</th><th>OU μ</th><th>P(up)</th></tr></thead>
+        <tbody>${tableRows || '<tr><td colspan="8" class="nodata">No data.</td></tr>'}</tbody></table></div>
+    </div>`;
+}
+
+/* --------------------------------------------------------------- Team A */
+
+function renderTeamATab(rows) {
+  const latest = latestPerSymbol(rows);
+
+  // Only sized theses carry VaR — the "no directional edge" path returns early.
+  const varRows = latest
+    .filter(r => typeof r.team_a_report?.var_95 === 'number')
+    .map(r => {
+      const v = r.team_a_report.var_95;
+      return { label: r.symbol, value: v, display: fmtPct(v, 2), negative: v > VAR_LIMIT };
+    });
+
+  const sizeRows = latest
+    .filter(r => (r.team_a_report?.position_size_usd || 0) > 0)
+    .map(r => ({ label: r.symbol, value: r.team_a_report.position_size_usd, display: fmtMoney(r.team_a_report.position_size_usd, 0), negative: false }));
+
+  const approved = rows.filter(r => r.team_a_report?.approved).length;
+  const vetoed = rows.filter(r => r.team_a_report && !r.team_a_report.approved && r.team_a_report.direction !== 'no_trade').length;
+  const noEdge = rows.filter(r => r.team_a_report?.direction === 'no_trade').length;
+
+  const tableRows = recent(rows).map(r => {
+    const a = r.team_a_report || {};
+    const status = a.approved ? badge('approved', 'good')
+      : badge(a.direction === 'no_trade' ? 'no edge' : 'vetoed', a.direction === 'no_trade' ? 'muted' : 'critical');
+    return `<tr>
+      <td>${fmtTime(r.run_at)}</td>
+      <td><strong>${esc(r.symbol)}</strong></td>
+      <td>${dirCell(a.direction)}</td>
+      <td class="num">${fmtPct(a.confidence)}</td>
+      <td>${status}</td>
+      <td class="num">${fmtPct(a.kelly_fraction)}</td>
+      <td class="num">${fmtPct(a.var_95, 2)}</td>
+      <td class="num">${fmtPct(a.cvar_95, 2)}</td>
+      <td class="num">${a.position_size_usd ? fmtMoney(a.position_size_usd, 2) : '—'}</td>
+      <td class="wrap-cell">${esc(a.rationale || a.veto_reason || '—')}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="tiles" style="margin-bottom:14px">
+      <div class="tile"><div class="label">Approved</div><div class="value">${approved}</div><div class="sub">passed risk</div></div>
+      <div class="tile"><div class="label">Vetoed</div><div class="value">${vetoed}</div><div class="sub">breached VaR limit</div></div>
+      <div class="tile"><div class="label">No edge</div><div class="value">${noEdge}</div><div class="sub">no thesis formed</div></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel chart">
+        <h2>Value at Risk (95%) vs the veto limit</h2>
+        <p class="note">The Risker rejects any thesis above ${fmtPct(VAR_LIMIT, 0)}. Only sized theses carry a VaR figure.</p>
+        ${hBarChart(varRows, { compact: true, refLines: [{ value: VAR_LIMIT, label: 'veto ' + fmtPct(VAR_LIMIT, 0) }], tickFormat: t => (t * 100).toFixed(1) + '%' })}
+      </div>
+      <div class="panel chart">
+        <h2>Position size by symbol</h2>
+        <p class="note">Half-Kelly, capped at 25% of allocated capital.</p>
+        ${hBarChart(sizeRows, { compact: true, tickFormat: t => fmtCompactMoney(t) })}
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Thesis &amp; risk detail</h2>
+      <p class="note">Trader's directional call and the Risker's sizing/veto decision per scan.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Time</th><th>Symbol</th><th>Thesis</th><th>Confidence</th><th>Status</th><th>Kelly</th><th>VaR(95)</th><th>CVaR(95)</th><th>Size</th><th>Rationale</th></tr></thead>
+        <tbody>${tableRows || '<tr><td colspan="10" class="nodata">No data.</td></tr>'}</tbody></table></div>
+    </div>`;
+}
+
+/* --------------------------------------------------------------- Team S */
+
+function renderTeamSTab(rows) {
+  const executed = rows.filter(r => r.execution_result?.executed);
+  const skipped = rows.filter(r => r.execution_result && !r.execution_result.executed);
+  const dry = rows.filter(r => !r.execution_result);
+  const childOrders = executed.reduce((s, r) => s + (r.execution_result.child_orders || []).length, 0);
+  const notional = executed.reduce((s, r) => s + (r.execution_result.total_qty || 0) * (r.execution_result.reference_price || 0), 0);
+
+  const notionalRows = latestPerSymbol(executed).map(r => {
+    const e = r.execution_result;
+    const v = (e.total_qty || 0) * (e.reference_price || 0);
+    return { label: r.symbol, value: v, display: fmtMoney(v, 0), negative: e.side === 'sell' };
+  });
+
+  const tableRows = recent(rows).map(r => {
+    const e = r.execution_result;
+    const status = !e ? badge('dry run', 'muted') : e.executed ? badge('filled', 'good') : badge('skipped', 'muted');
+    return `<tr>
+      <td>${fmtTime(r.run_at)}</td>
+      <td><strong>${esc(r.symbol)}</strong></td>
+      <td>${status}</td>
+      <td>${e?.side ? (e.side === 'buy' ? '<span class="dir long">buy</span>' : '<span class="dir short">sell</span>') : '—'}</td>
+      <td class="num">${e?.total_qty ?? '—'}</td>
+      <td class="num">${e?.reference_price ? fmtMoney(e.reference_price, 2) : '—'}</td>
+      <td class="num">${(e?.child_orders || []).length || '—'}</td>
+      <td class="wrap-cell">${e && !e.executed ? esc(e.reason) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="tiles" style="margin-bottom:14px">
+      <div class="tile"><div class="label">Filled</div><div class="value">${executed.length}</div><div class="sub">orders submitted</div></div>
+      <div class="tile"><div class="label">Child orders</div><div class="value">${childOrders}</div><div class="sub">TWAP slices</div></div>
+      <div class="tile"><div class="label">Notional</div><div class="value">${fmtCompactMoney(notional)}</div><div class="sub">at reference price</div></div>
+      <div class="tile"><div class="label">Skipped</div><div class="value">${skipped.length}</div><div class="sub">${dry.length} dry-run</div></div>
+    </div>
+
+    <div class="panel chart">
+      <h2>Notional exposure by symbol</h2>
+      <p class="note">Latest order per symbol, qty × reference price. Red bars are short sales.</p>
+      ${hBarChart(notionalRows, { tickFormat: t => fmtCompactMoney(t) })}
+    </div>
+
+    <div class="panel">
+      <h2>Execution detail</h2>
+      <p class="note">Whole-share, TWAP-sliced market orders — and the reason whenever an approved thesis wasn't filled.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Time</th><th>Symbol</th><th>Status</th><th>Side</th><th>Qty</th><th>Ref. price</th><th>Slices</th><th>Skip reason</th></tr></thead>
+        <tbody>${tableRows || '<tr><td colspan="8" class="nodata">No data.</td></tr>'}</tbody></table></div>
+    </div>`;
+}
+
+/* ------------------------------------------------------------ interaction */
+
+const tooltip = document.getElementById('tooltip');
+
+function showTip(html, ev) {
+  tooltip.innerHTML = html;
+  tooltip.style.display = 'block';
+  const r = tooltip.getBoundingClientRect();
+  let left = ev.clientX + 14, top = ev.clientY - 12;
+  if (left + r.width > window.innerWidth - 8) left = ev.clientX - r.width - 14;
+  if (top + r.height > window.innerHeight - 8) top = window.innerHeight - r.height - 8;
+  tooltip.style.left = left + 'px';
+  tooltip.style.top = Math.max(8, top) + 'px';
+}
+function hideTip() { tooltip.style.display = 'none'; }
+
+function wireChartHovers() {
+  const svg = document.getElementById('equity-svg');
+  if (svg) {
+    const target = document.getElementById('hover-target');
+    const crosshair = document.getElementById('crosshair');
+    const dot = document.getElementById('hover-dot');
+    target.addEventListener('mousemove', ev => {
+      if (!hoverPoints.length) return;
+      const rect = svg.getBoundingClientRect();
+      const mx = (ev.clientX - rect.left) * (1000 / rect.width);
+      let near = hoverPoints[0];
+      for (const p of hoverPoints) if (Math.abs(p.x - mx) < Math.abs(near.x - mx)) near = p;
+      crosshair.style.display = 'block';
+      crosshair.setAttribute('x1', near.x); crosshair.setAttribute('x2', near.x);
+      dot.style.display = 'block';
+      dot.setAttribute('cx', near.x); dot.setAttribute('cy', near.y);
+      showTip(`<div class="tt-val">${fmtMoney(near.equity, 2)}</div><div class="tt-sub">${esc(fmtTime(near.t))}</div>`, ev);
+    });
+    target.addEventListener('mouseleave', () => {
+      crosshair.style.display = 'none'; dot.style.display = 'none'; hideTip();
+    });
+  }
+
+  document.querySelectorAll('.bar-row').forEach(g => {
+    g.addEventListener('mousemove', ev => {
+      const note = g.dataset.note ? `<div class="tt-sub">${esc(g.dataset.note)}</div>` : '';
+      showTip(`<div class="tt-val">${esc(g.dataset.label)} · ${esc(g.dataset.value)}</div>${note}`, ev);
+    });
+    g.addEventListener('mouseleave', hideTip);
+  });
+}
+
+/* ---------------------------------------------------------------- router */
+
+const TABS = { main: renderMainTab, teamc: renderTeamCTab, teamb: renderTeamBTab, teama: renderTeamATab, teams: renderTeamSTab };
 
 function renderEmpty(message) {
   document.getElementById('content').innerHTML = `
     <div class="empty">
       <p>${esc(message)}</p>
       <p>Runs are written by <code>.github/workflows/trading-pipeline.yml</code> to
-      <code>logs/history.json</code> — check back after the next scheduled run,
-      or trigger it manually from the Actions tab.</p>
+      <code>logs/history.json</code> — check back after the next scheduled run, or
+      trigger one from the Actions tab.</p>
     </div>`;
 }
 
-// ---------------------------------------------------------------- Main tab
-
-function buildEquitySeries(history) {
-  return history
-    .filter(r => r.account && typeof r.account.equity === 'number')
-    .map(r => ({ t: r.run_at, equity: r.account.equity }));
+function syncSymbolOptions() {
+  const select = document.getElementById('symbol-filter');
+  const symbols = [...new Set(historyData.map(r => r.symbol))].sort();
+  const wanted = ['ALL', ...symbols].join('|');
+  if (select.dataset.built === wanted) return;
+  select.dataset.built = wanted;
+  select.innerHTML = '<option value="ALL">All symbols</option>' +
+    symbols.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  select.value = symbols.includes(symbolFilter) ? symbolFilter : 'ALL';
+  symbolFilter = select.value;
 }
 
-function renderEquityChart(series) {
-  if (series.length < 2) {
-    return '<p class="note">Not enough account snapshots yet to draw an equity curve (need Alpaca credentials configured and at least two runs).</p>';
-  }
-  const W = 1000, H = 220, PAD = 32;
-  const values = series.map(s => s.equity);
-  const minV = Math.min(...values), maxV = Math.max(...values);
-  const range = (maxV - minV) || 1;
-  const xStep = (W - PAD * 2) / (series.length - 1);
-  const points = series.map((s, i) => {
-    const x = PAD + i * xStep;
-    const y = H - PAD - ((s.equity - minV) / range) * (H - PAD * 2);
-    return { x, y, ...s };
-  });
-  const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
-  const gridY = [0, 0.25, 0.5, 0.75, 1].map(f => H - PAD - f * (H - PAD * 2));
+function render() {
+  if (!historyData.length) { renderEmpty('No runs logged yet.'); return; }
+  const rows = filtered();
+  document.getElementById('content').innerHTML = (TABS[activeTab] || renderMainTab)(rows);
 
-  // Kept in a module-level variable (not a nested script element) so
-  // this file's own outer script block never contains a literal
-  // end-of-script tag, which would otherwise terminate it early and
-  // dump the rest of the JS onto the page as plain text.
-  lastEquityPoints = points.map(p => ({ x: p.x, y: p.y, t: p.t, equity: p.equity }));
+  const runs = new Set(historyData.map(r => r.run_at.slice(0, 16))).size;
+  const lastRun = historyData[historyData.length - 1]?.run_at;
+  document.getElementById('filter-meta').textContent =
+    `${rows.length} scans · ${runs} pipeline runs · last ${relTime(lastRun)}`;
 
-  return `
-    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;" id="equity-svg">
-      ${gridY.map(y => `<line class="chart-grid" x1="${PAD}" x2="${W - PAD}" y1="${y}" y2="${y}" />`).join('')}
-      <line class="chart-baseline" x1="${PAD}" x2="${W - PAD}" y1="${H - PAD}" y2="${H - PAD}" />
-      <path class="chart-line" d="${path}" />
-      <line class="crosshair" id="crosshair" x1="0" x2="0" y1="${PAD}" y2="${H - PAD}" />
-      <circle class="hover-dot" id="hover-dot" r="4" />
-      <rect x="0" y="0" width="${W}" height="${H}" fill="transparent" id="hover-target" />
-    </svg>
-  `;
+  wireChartHovers();
 }
 
-function wireEquityHover() {
-  const svg = document.getElementById('equity-svg');
-  if (!svg) return;
-  const target = document.getElementById('hover-target');
-  const crosshair = document.getElementById('crosshair');
-  const dot = document.getElementById('hover-dot');
-  const tooltip = document.getElementById('tooltip');
-  const points = lastEquityPoints;
-  if (!points.length) return;
-
-  target.addEventListener('mousemove', (e) => {
-    const rect = svg.getBoundingClientRect();
-    const scaleX = 1000 / rect.width;
-    const mouseX = (e.clientX - rect.left) * scaleX;
-    let nearest = points[0];
-    for (const p of points) {
-      if (Math.abs(p.x - mouseX) < Math.abs(nearest.x - mouseX)) nearest = p;
-    }
-    crosshair.style.display = 'block';
-    crosshair.setAttribute('x1', nearest.x);
-    crosshair.setAttribute('x2', nearest.x);
-    dot.style.display = 'block';
-    dot.setAttribute('cx', nearest.x);
-    dot.setAttribute('cy', nearest.y);
-
-    tooltip.style.display = 'block';
-    tooltip.style.left = (e.clientX + 12) + 'px';
-    tooltip.style.top = (e.clientY - 12) + 'px';
-    tooltip.innerHTML = `<strong>${fmtMoney(nearest.equity)}</strong><br>${fmtTime(nearest.t)}`;
-  });
-  target.addEventListener('mouseleave', () => {
-    crosshair.style.display = 'none';
-    dot.style.display = 'none';
-    tooltip.style.display = 'none';
-  });
-}
-
-function renderTradeLogRow(r) {
-  const exec = r.execution_result;
-  if (!exec || !exec.executed) return '';
-  return `
-    <tr>
-      <td>${fmtTime(r.run_at)}</td>
-      <td>${esc(r.symbol)}</td>
-      <td>${esc(exec.side)}</td>
-      <td>${exec.total_qty ?? '—'}</td>
-      <td>${fmtMoney(exec.reference_price)}</td>
-      <td>${(exec.child_orders || []).length}</td>
-      <td>${r.account ? fmtMoney(r.account.equity) : '—'}</td>
-    </tr>`;
-}
-
-function renderMainRow(r) {
-  const teamA = r.team_a_report || {};
-  const exec = r.execution_result;
-  const approvedBadge = teamA.approved
-    ? statusBadge('approved', 'good')
-    : statusBadge(teamA.veto_reason ? 'vetoed' : 'no trade', teamA.veto_reason ? 'critical' : 'muted');
-  const execBadge = !exec
-    ? statusBadge('dry run', 'muted')
-    : (exec.executed ? statusBadge('executed', 'good') : statusBadge(exec.reason || 'skipped', 'muted'));
-
-  return `
-    <tr>
-      <td>${fmtTime(r.run_at)}</td>
-      <td>${esc(r.symbol)}</td>
-      <td>${esc(teamA.direction) || '—'}</td>
-      <td>${approvedBadge}</td>
-      <td>${fmtMoney(teamA.position_size_usd)}</td>
-      <td>${execBadge}</td>
-      <td>${r.account ? fmtMoney(r.account.equity) : '—'}</td>
-    </tr>`;
-}
-
-function renderMainTab(history) {
-  const latestWithAccount = history.slice().reverse().find(r => r.account);
-  const executedRows = history.filter(r => r.execution_result?.executed);
-  const approvedCount = history.filter(r => r.team_a_report?.approved).length;
-  const symbolsScanned = new Set(history.map(r => r.symbol)).size;
-  const equitySeries = buildEquitySeries(history);
-
-  const tradeRows = recent(executedRows).map(renderTradeLogRow).join('');
-  const mainRows = recent(history).map(renderMainRow).join('');
-
-  return `
-    <div class="kpis">
-      <div class="kpi"><div class="label">Latest Equity</div><div class="value">${fmtMoney(latestWithAccount?.account?.equity)}</div></div>
-      <div class="kpi"><div class="label">Total Scans</div><div class="value">${history.length}</div></div>
-      <div class="kpi"><div class="label">Symbols Covered</div><div class="value">${symbolsScanned}</div></div>
-      <div class="kpi"><div class="label">Approved Theses</div><div class="value">${approvedCount}</div></div>
-      <div class="kpi"><div class="label">Trades Executed</div><div class="value">${executedRows.length}</div></div>
-    </div>
-
-    <div class="panel">
-      <h2>Account Equity</h2>
-      ${renderEquityChart(equitySeries)}
-    </div>
-
-    <div class="panel">
-      <h2>Trade Log (buys &amp; sells actually submitted)</h2>
-      ${tradeRows ? `
-      <table>
-        <thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Ref. Price</th><th>Child Orders</th><th>Equity After</th></tr></thead>
-        <tbody>${tradeRows}</tbody>
-      </table>` : '<p class="note">No trades executed yet.</p>'}
-    </div>
-
-    <div class="panel">
-      <h2>All Scans (most recent first)</h2>
-      <table>
-        <thead><tr><th>Time</th><th>Symbol</th><th>Thesis</th><th>Team A</th><th>Size</th><th>Team S</th><th>Equity</th></tr></thead>
-        <tbody>${mainRows}</tbody>
-      </table>
-    </div>
-  `;
-}
-
-// -------------------------------------------------------------- Team C tab
-
-function renderTeamCRow(r) {
-  const c = r.team_c || {};
-  const stats = c.statistics || {};
-  const sent = c.sentiment || {};
-  return `
-    <tr>
-      <td>${fmtTime(r.run_at)}</td>
-      <td>${esc(r.symbol)}</td>
-      <td>${fmtMoney(c.last_close)}</td>
-      <td>${fmtNum(stats.rsi_14, 1)}</td>
-      <td>${fmtNum(stats.sma_20)}</td>
-      <td>${fmtNum(stats.z_score_20)}</td>
-      <td>${fmtNum(stats.atr_14)}</td>
-      <td>${fmtNum(sent.mean_compound, 2)}</td>
-      <td>${sent.reddit_post_count ?? 0} / ${sent.news_article_count ?? 0}</td>
-      <td class="wrap-cell">${esc((sent.top_keywords || []).slice(0, 6).join(', '))}</td>
-    </tr>`;
-}
-
-function renderTeamCTab(history) {
-  const rows = recent(history).map(renderTeamCRow).join('');
-  return `
-    <div class="panel">
-      <h2>Data Puller &amp; Statistician</h2>
-      <p class="note">Moving averages, RSI, Bollinger/Z-score, ATR -- see knowledge_base/team_c_data_signals.md for formulas.</p>
-      <table>
-        <thead><tr><th>Time</th><th>Symbol</th><th>Close</th><th>RSI(14)</th><th>SMA(20)</th><th>Z-score</th><th>ATR(14)</th><th>Sentiment</th><th>Reddit/News</th><th>Top Keywords</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="10" class="note">No data yet.</td></tr>'}</tbody>
-      </table>
-    </div>
-  `;
-}
-
-// -------------------------------------------------------------- Team B tab
-
-function renderTeamBRow(r) {
-  const b = r.team_b || {};
-  const math = b.mathematician || {};
-  const ou = math.ornstein_uhlenbeck || {};
-  const ml = b.ml_engineer || {};
-  return `
-    <tr>
-      <td>${fmtTime(r.run_at)}</td>
-      <td>${esc(r.symbol)}</td>
-      <td>${esc(math.market_regime) || '—'}</td>
-      <td>${fmtPct(math.annualized_drift)}</td>
-      <td>${fmtPct(math.annualized_volatility)}</td>
-      <td>${fmtNum(ou.theta, 3)}</td>
-      <td>${fmtMoney(ou.mu)}</td>
-      <td>${fmtPct(ml.probability_up_next_day)}</td>
-    </tr>`;
-}
-
-function renderTeamBTab(history) {
-  const rows = recent(history).map(renderTeamBRow).join('');
-  return `
-    <div class="panel">
-      <h2>Mathematician &amp; ML Engineer</h2>
-      <p class="note">GBM/Ornstein-Uhlenbeck/regime detection + Random Forest walk-forward probability -- see knowledge_base/team_b_quants.md.</p>
-      <table>
-        <thead><tr><th>Time</th><th>Symbol</th><th>Regime</th><th>Ann. Drift</th><th>Ann. Vol</th><th>OU theta</th><th>OU mu</th><th>P(up next day)</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="8" class="note">No data yet.</td></tr>'}</tbody>
-      </table>
-    </div>
-  `;
-}
-
-// -------------------------------------------------------------- Team A tab
-
-function renderTeamARow(r) {
-  const a = r.team_a_report || {};
-  const approvedBadge = a.approved
-    ? statusBadge('approved', 'good')
-    : statusBadge(a.veto_reason ? 'vetoed' : 'no trade', a.veto_reason ? 'critical' : 'muted');
-  return `
-    <tr>
-      <td>${fmtTime(r.run_at)}</td>
-      <td>${esc(r.symbol)}</td>
-      <td>${esc(a.direction) || '—'}</td>
-      <td>${fmtPct(a.confidence)}</td>
-      <td>${approvedBadge}</td>
-      <td class="wrap-cell">${esc(a.veto_reason) || '—'}</td>
-      <td>${fmtPct(a.kelly_fraction)}</td>
-      <td>${fmtPct(a.var_95)}</td>
-      <td>${fmtPct(a.cvar_95)}</td>
-      <td>${fmtMoney(a.position_size_usd)}</td>
-    </tr>`;
-}
-
-function renderTeamATab(history) {
-  const rows = recent(history).map(renderTeamARow).join('');
-  return `
-    <div class="panel">
-      <h2>Trader &amp; Risker</h2>
-      <p class="note">Kelly Criterion sizing, VaR/CVaR veto -- see knowledge_base/team_a_strategy_risk.md.</p>
-      <table>
-        <thead><tr><th>Time</th><th>Symbol</th><th>Thesis</th><th>Confidence</th><th>Status</th><th>Veto Reason</th><th>Kelly</th><th>VaR(95)</th><th>CVaR(95)</th><th>Size</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="10" class="note">No data yet.</td></tr>'}</tbody>
-      </table>
-    </div>
-  `;
-}
-
-// -------------------------------------------------------------- Team S tab
-
-function renderTeamSRow(r) {
-  const exec = r.execution_result;
-  const badge = !exec
-    ? statusBadge('dry run', 'muted')
-    : (exec.executed ? statusBadge('executed', 'good') : statusBadge('skipped', 'muted'));
-  return `
-    <tr>
-      <td>${fmtTime(r.run_at)}</td>
-      <td>${esc(r.symbol)}</td>
-      <td>${badge}</td>
-      <td>${exec?.side ? esc(exec.side) : '—'}</td>
-      <td>${exec?.total_qty ?? '—'}</td>
-      <td>${exec?.reference_price ? fmtMoney(exec.reference_price) : '—'}</td>
-      <td>${(exec?.child_orders || []).length}</td>
-      <td class="wrap-cell">${exec && !exec.executed ? esc(exec.reason) : '—'}</td>
-    </tr>`;
-}
-
-function renderTeamSTab(history) {
-  const rows = recent(history).map(renderTeamSRow).join('');
-  return `
-    <div class="panel">
-      <h2>Execution</h2>
-      <p class="note">TWAP-sliced, whole-share orders; only acts on a Team-A-approved report -- see knowledge_base/team_s_execution.md.</p>
-      <table>
-        <thead><tr><th>Time</th><th>Symbol</th><th>Status</th><th>Side</th><th>Qty</th><th>Ref. Price</th><th>Child Orders</th><th>Skip Reason</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="8" class="note">No data yet.</td></tr>'}</tbody>
-      </table>
-    </div>
-  `;
-}
-
-// ------------------------------------------------------------------ Router
-
-const TAB_RENDERERS = {
-  main: renderMainTab,
-  teamc: renderTeamCTab,
-  teamb: renderTeamBTab,
-  teama: renderTeamATab,
-  teams: renderTeamSTab,
-};
-
-function renderActiveTab() {
-  if (!historyData.length) {
-    renderEmpty('No runs logged yet.');
-    return;
-  }
-  const renderer = TAB_RENDERERS[activeTab] || renderMainTab;
-  document.getElementById('content').innerHTML = renderer(historyData);
-  if (activeTab === 'main') wireEquityHover();
-}
-
-document.getElementById('tabs').addEventListener('click', (e) => {
+document.getElementById('tabs').addEventListener('click', e => {
   const btn = e.target.closest('.tab-btn');
   if (!btn) return;
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   activeTab = btn.dataset.tab;
-  renderActiveTab();
+  render();
+});
+
+document.getElementById('symbol-filter').addEventListener('change', e => {
+  symbolFilter = e.target.value;
+  render();
 });
 
 async function load() {
+  const content = document.getElementById('content');
   try {
+    if (historyData.length) content.classList.add('stale');
     const res = await fetch(HISTORY_URL + '?_=' + Date.now());
-    if (!res.ok) {
-      renderEmpty('No run history yet (logs/history.json not found).');
-      return;
-    }
+    if (!res.ok) { renderEmpty('No run history yet (logs/history.json not found).'); return; }
     historyData = await res.json();
-    renderActiveTab();
-    document.getElementById('footer').textContent = 'Last refreshed ' + new Date().toLocaleTimeString();
-  } catch (e) {
-    renderEmpty('Could not load run history: ' + e.message);
+    syncSymbolOptions();
+    render();
+    document.getElementById('footer').textContent = 'Auto-refreshes every 60s · last checked ' + new Date().toLocaleTimeString();
+  } catch (err) {
+    if (!historyData.length) renderEmpty('Could not load run history: ' + err.message);
+  } finally {
+    content.classList.remove('stale');
   }
 }
 
