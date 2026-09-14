@@ -70,7 +70,7 @@ Google News).
 # Dry run — full analysis, nothing submitted to the broker
 python main.py
 
-# Your own watchlist
+# Your own watchlist (bypasses price-bracket filtering entirely)
 python main.py --symbols AAPL,MSFT,TSLA
 
 # Actually submit paper trades for every approved thesis
@@ -82,16 +82,52 @@ python main.py --max-position-usd 100 --execute
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--symbols` | the ~75-symbol `DEFAULT_WATCHLIST` in `main.py` | Comma-separated tickers to scan |
+| `--symbols` | none | Comma-separated tickers to scan. Omit to auto-select affordable symbols from the ~560-symbol candidate pool instead (see below); setting this bypasses that selection entirely and runs exactly what's given |
 | `--max-position-usd` | `50` | Hard dollar ceiling for a single position, regardless of equity |
 | `--max-position-pct` | `0.25` | Ceiling as a fraction of current equity — whichever cap is smaller wins |
+| `--price-bracket-pct` | `0.125` | Per-share price ceiling as a fraction of equity, floor $1. Ignored if `--symbols` is set |
+| `--max-candidates` | `76` | Cap on how many price-affordable candidates get the full pipeline in one run. Ignored if `--symbols` is set |
 | `--execute` | off (dry run) | Without it, Team S is skipped entirely |
 
 ### 2. Manually, from GitHub Actions
 
 Actions tab → **Trading Pipeline** → **Run workflow**. Inputs:
-`symbols` (blank = the default watchlist), `max_position_usd`, `execute`
-(defaults to `true`).
+`symbols` (blank = auto-select, as above), `max_position_usd`,
+`price_bracket_pct`, `max_candidates`, `execute` (defaults to `true`).
+
+### Picking affordable symbols — a candidate pool, price-filtered per run
+
+Scanning a fixed watchlist ran into the same wall regardless of how the
+position-size caps were tuned (see below): most large/mid-cap stocks
+simply cost more per share than a small account should be spending on
+one position. Rather than hand-picking a watchlist for one account size,
+`main.py` now works in two stages:
+
+1. **`symbol_universe.py`** holds `SP500_CANDIDATES` — a ~560-symbol
+   candidate pool (a good-faith S&P-500-style snapshot spanning every
+   major sector; index membership drifts over time, so this isn't a
+   claim of exact, live index membership).
+2. Every run, `select_affordable_symbols()` in `main.py`:
+   - Computes a price ceiling: `max($1, current_equity × price_bracket_pct)`
+     — proportional to equity, so a $200 account and a $10,000 account
+     each get a bracket sized to what they can actually deploy, not a
+     fixed dollar range that only suits one account size. On $200 with
+     the default `0.125`, that's a **$1–$25** bracket.
+   - Batch-prices the *whole* candidate pool in a handful of API calls
+     (`tools/alpaca_tools.py`'s `get_latest_prices()`, built on Alpaca's
+     multi-symbol `get_latest_trades()` — not one call per symbol, which
+     is what makes checking ~560 candidates cheap enough to do every run).
+   - Filters to symbols priced inside that bracket, then caps the result
+     at `--max-candidates` (a day-seeded random sample if more qualify,
+     so it's not a frozen alphabetical prefix forever, but stable within
+     a day).
+   - Only *this* filtered subset goes through the full, expensive
+     pipeline (~6 network calls + ARIMA/GBM/Random-Forest fitting per
+     symbol) — the other ~480+ candidates never get more than a price
+     check, keeping runtime comparable to scanning a fixed 76-symbol list.
+
+Passing `--symbols` explicitly skips all of this and runs exactly what
+you asked for, same as before.
 
 ### Position sizing — built for a small account
 
@@ -175,6 +211,17 @@ Two caveats worth knowing:
 
 After every run the workflow commits the updated `logs/history.json`
 back to `main`, which is what feeds the dashboard.
+
+**If two runs overlap** (a manual trigger racing the 4-hour cron, or two
+manual triggers close together), whichever commits second gets its
+`git push` rejected — there's no merge for a plain push, and a
+text-level rebase would likely conflict anyway, since both runs append
+to the same trailing region of the same JSON array. The workflow
+recovers from this itself: on a rejected push, `scripts/reconcile_history_log.py`
+extracts just *this* run's own new records (by `run_at`, captured against
+the job's own start time) and re-appends them onto whatever the freshest
+`origin/main` copy turns out to be, retrying up to 5 times. No run's data
+is lost to the race; nothing needs manual intervention.
 
 ---
 
@@ -332,14 +379,17 @@ agents/
   team_a_strategy.py     # Trader, Risker (Kelly/VaR, veto power)
   team_s_execution.py    # Execution agent — the ONLY caller of submit_order
 tools/
-  alpaca_tools.py        # Alpaca REST client, orders, TWAP slicing
+  alpaca_tools.py        # Alpaca REST client, orders, TWAP slicing, batch pricing
   reddit_news_scraper.py # Yahoo Finance, PRAW (Reddit), RSS news
   run_logger.py          # Appends each run's summary to logs/history.json
+scripts/
+  reconcile_history_log.py  # Recovers from a git-push race on logs/history.json
 config/.env.example      # Template for required environment variables
 knowledge_base/*.md      # Per-team formulas + pointers to implementing code
 logs/history.json        # Run history (written by the workflow, read by the dashboard)
 index.html               # Tabbed GitHub Pages dashboard
-main.py                  # Entry point — watchlist loop
+main.py                  # Entry point — candidate selection + pipeline loop
+symbol_universe.py       # ~560-symbol candidate pool, price-filtered every run
 ```
 
 ---
@@ -376,10 +426,13 @@ Worth being clear about, since this trades real (paper) money:
 - **No position/exit management.** The system opens positions; nothing
   closes them, sets stops, or prevents stacking duplicate positions in
   the same symbol across runs.
-- **The watchlist is ~75 symbols**, not "the whole market" — a full
-  ARIMA/GBM/Random-Forest pass per symbol doesn't scale to thousands,
-  and each additional symbol also means more Reddit API calls in the
-  same run, which risks rate-limiting on a large watchlist.
+- **Only ~76 symbols get the full pipeline per run**, not "the whole
+  market" — a full ARIMA/GBM/Random-Forest pass per symbol doesn't scale
+  to thousands, and each additional symbol also means more Reddit API
+  calls in the same run, which risks rate-limiting. The ~560-symbol
+  candidate pool (`symbol_universe.py`) is cheaply price-filtered every
+  run, but only the affordable subset (capped at `--max-candidates`)
+  gets the expensive treatment.
 - **Short theses still can't reach higher-priced stocks.** Longs buy
   fractional shares now (see Team S above), but shorts stay whole-share
   only because Alpaca rejects fractional short sales — a ~$12.50

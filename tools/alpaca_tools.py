@@ -50,6 +50,30 @@ def get_latest_price(symbol: str) -> float:
     return float(trade.price)
 
 
+def get_latest_prices(symbols: list[str], batch_size: int = 100) -> dict[str, float]:
+    """
+    Fetch the latest trade price for many symbols at once.
+
+    Batches into groups of `batch_size` (well under any request-size limit)
+    so pricing a large candidate pool costs a handful of API calls, not one
+    per symbol -- this is what makes cheaply pre-filtering hundreds of
+    candidates by price practical. A symbol Alpaca doesn't return data for
+    (e.g. a bad ticker) is silently omitted rather than failing the batch.
+    """
+    if not symbols:
+        return {}
+
+    client = get_alpaca_client()
+    prices: dict[str, float] = {}
+    for i in range(0, len(symbols), batch_size):
+        batch = symbols[i : i + batch_size]
+        trades = client.get_latest_trades(batch)
+        for symbol, trade in trades.items():
+            if trade is not None:
+                prices[symbol] = float(trade.price)
+    return prices
+
+
 def submit_order(
     symbol: str,
     qty: float,
