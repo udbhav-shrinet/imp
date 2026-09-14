@@ -1,13 +1,12 @@
 """
 Data-gathering tools used by Team C (Data Puller, Sentiment Analyst):
-Yahoo Finance price history, Reddit (PRAW), and news headlines.
+Yahoo Finance price history, Reddit (PRAW), and news headlines via RSS.
 """
 
 import os
-from datetime import datetime, timedelta
 
+import feedparser
 import praw
-import requests
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", "config", ".env"))
@@ -47,38 +46,33 @@ def scrape_reddit_mentions(symbol: str, subreddits: list[str] | None = None, lim
     return posts
 
 
-def scrape_news_headlines(symbol: str, days_back: int = 7, page_size: int = 50) -> list[dict]:
-    """
-    Pull recent news headlines mentioning `symbol` via NewsAPI.
-    Requires NEWS_API_KEY in the environment.
-    """
-    api_key = os.environ["NEWS_API_KEY"]
-    from_date = (datetime.utcnow() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+DEFAULT_NEWS_RSS_FEEDS = [
+    "https://feeds.finance.yahoo.com/rss/2.0/headline?s={symbol}&region=US&lang=en-US",
+    "https://news.google.com/rss/search?q={symbol}+stock&hl=en-US&gl=US&ceid=US:en",
+]
 
-    response = requests.get(
-        "https://newsapi.org/v2/everything",
-        params={
-            "q": symbol,
-            "from": from_date,
-            "sortBy": "publishedAt",
-            "pageSize": page_size,
-            "language": "en",
-            "apiKey": api_key,
-        },
-        timeout=15,
-    )
-    response.raise_for_status()
-    articles = response.json().get("articles", [])
-    return [
-        {
-            "source": a["source"]["name"],
-            "title": a["title"],
-            "description": a["description"],
-            "published_at": a["publishedAt"],
-            "url": a["url"],
-        }
-        for a in articles
-    ]
+
+def scrape_news_headlines(symbol: str, feed_templates: list[str] | None = None, limit: int = 50) -> list[dict]:
+    """
+    Pull recent news headlines mentioning `symbol` from RSS feeds (Yahoo
+    Finance and Google News by default). No API key required.
+    """
+    feed_templates = feed_templates or DEFAULT_NEWS_RSS_FEEDS
+    articles = []
+    for template in feed_templates:
+        feed_url = template.format(symbol=symbol)
+        parsed = feedparser.parse(feed_url)
+        for entry in parsed.entries[:limit]:
+            articles.append(
+                {
+                    "source": parsed.feed.get("title", feed_url),
+                    "title": entry.get("title", ""),
+                    "description": entry.get("summary", ""),
+                    "published_at": entry.get("published", ""),
+                    "url": entry.get("link", ""),
+                }
+            )
+    return articles
 
 
 def get_yahoo_price_history(symbol: str, period: str = "6mo", interval: str = "1d"):

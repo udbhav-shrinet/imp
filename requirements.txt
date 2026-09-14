@@ -9,5 +9,5 @@ statsmodels
 praw
 python-dotenv
 yfinance
-requests
 nltk
+feedparser
