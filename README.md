@@ -68,25 +68,67 @@ Google News).
 
 ```bash
 # Dry run — full analysis, nothing submitted to the broker
-python main.py --capital 10000
+python main.py
 
 # Your own watchlist
-python main.py --symbols AAPL,MSFT,TSLA --capital 10000
+python main.py --symbols AAPL,MSFT,TSLA
 
 # Actually submit paper trades for every approved thesis
-python main.py --capital 10000 --execute
+python main.py --execute
+
+# Raise the per-position ceiling (see the sizing model below)
+python main.py --max-position-usd 50 --execute
 ```
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--symbols` | the 10-symbol `DEFAULT_WATCHLIST` in `main.py` | Comma-separated tickers to scan |
-| `--capital` | `10000` | USD allocated **per approved thesis**, not per run |
+| `--symbols` | the ~75-symbol `DEFAULT_WATCHLIST` in `main.py` | Comma-separated tickers to scan |
+| `--max-position-usd` | `20` | Hard dollar ceiling for a single position, regardless of equity |
+| `--max-position-pct` | `0.10` | Ceiling as a fraction of current equity — whichever cap is smaller wins |
 | `--execute` | off (dry run) | Without it, Team S is skipped entirely |
 
 ### 2. Manually, from GitHub Actions
 
-Actions tab → **Trading Pipeline** → **Run workflow**. Three inputs:
-`symbols`, `capital`, `execute` (defaults to `true`).
+Actions tab → **Trading Pipeline** → **Run workflow**. Inputs:
+`symbols` (blank = the default watchlist), `max_position_usd`, `execute`
+(defaults to `true`).
+
+### Position sizing — built for a small account
+
+There's no `--capital` flag anymore. The old design took a flat dollar
+figure disconnected from the account (`$10,000` per thesis by default)
+and let Kelly/VaR size within it — fine on a well-funded account, but on
+a small one (this was built against a **$200 paper account**) that
+figure has nothing to do with what's actually available, and a single
+approved thesis could try to spend most of the account.
+
+Now the cap is derived from live equity every run:
+
+```
+position_cap = min(max_position_usd, current_equity × max_position_pct)
+```
+
+On $200 with the defaults, that's `min($20, $20) = $20` — small enough
+that several approved theses in the same batch still fit inside the
+account. Two more guards sit underneath it:
+
+- **Team A's own half-Kelly, capped at 25% of that figure** (unchanged —
+  see below), so a single thesis rarely even reaches the $20 ceiling.
+- **Team S re-checks live buying power immediately before submitting**
+  (`agents/team_s_execution.py`), since Team A sizes each symbol
+  independently and several approved theses in one batch can otherwise
+  collectively exceed what's actually left to spend. It clamps down to
+  whatever's really available and skips cleanly if that's under one
+  share, rather than letting the broker reject the order.
+
+One consequence worth knowing: with a $20 ceiling, a stock trading above
+~$20/share can't buy even one whole share (fractional orders are
+avoided — see Team S below) and will always skip with "buys less than
+one whole share." On a small account, scanning ~75 symbols is partly
+a way of finding the handful that are actually affordable, not an
+expectation that most of them will trade. Raise `--max-position-usd`
+(or your account's equity) if you want the pricier names in the
+watchlist to be reachable.
 
 ### 3. Automatically, on a schedule
 
@@ -306,5 +348,10 @@ Worth being clear about, since this trades real (paper) money:
 - **No position/exit management.** The system opens positions; nothing
   closes them, sets stops, or prevents stacking duplicate positions in
   the same symbol across runs.
-- **The watchlist is 10 symbols**, not "the whole market" — a full
-  ARIMA/GBM/Random-Forest pass per symbol doesn't scale to thousands.
+- **The watchlist is ~75 symbols**, not "the whole market" — a full
+  ARIMA/GBM/Random-Forest pass per symbol doesn't scale to thousands,
+  and each additional symbol also means more Reddit API calls in the
+  same run, which risks rate-limiting on a large watchlist.
+- **Whole-share sizing means a low dollar ceiling can't reach
+  higher-priced stocks.** A $20 cap simply can't buy one share of a
+  $650 stock; that scan will always skip, by design.

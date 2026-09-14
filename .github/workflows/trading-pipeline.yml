@@ -7,13 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       symbols:
-        description: "Comma-separated ticker symbols to scan (the watchlist)"
+        description: "Comma-separated ticker symbols to scan (blank = main.py's ~75-symbol default watchlist)"
         required: false
-        default: "AAPL,MSFT,GOOGL,AMZN,NVDA,META,TSLA,JPM,XOM,JNJ"
-      capital:
-        description: "Capital allocated per approved thesis (USD)"
+        default: ""
+      max_position_usd:
+        description: "Hard dollar ceiling for a single position, regardless of equity"
         required: false
-        default: "10000"
+        default: "20"
       execute:
         description: "Actually submit the paper trade via Alpaca"
         required: false
@@ -48,7 +48,13 @@ jobs:
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
           REDDIT_USER_AGENT: trading-system-sentiment-bot/1.0
         run: |
-          ARGS=(--symbols "${{ github.event.inputs.symbols || 'AAPL,MSFT,GOOGL,AMZN,NVDA,META,TSLA,JPM,XOM,JNJ' }}" --capital "${{ github.event.inputs.capital || '10000' }}")
+          ARGS=(--max-position-usd "${{ github.event.inputs.max_position_usd || '20' }}")
+          # Blank (scheduled runs, or a manual run left at the default) lets
+          # main.py's own ~75-symbol DEFAULT_WATCHLIST apply instead of
+          # duplicating that list here.
+          if [ -n "${{ github.event.inputs.symbols }}" ]; then
+            ARGS+=(--symbols "${{ github.event.inputs.symbols }}")
+          fi
           # Scheduled runs (no workflow_dispatch inputs) execute by default;
           # a manual run can opt out with execute=false.
           if [ "${{ github.event.inputs.execute }}" != "false" ]; then
