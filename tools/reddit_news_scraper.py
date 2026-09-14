@@ -15,9 +15,12 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", "config", ".env"))
 def get_reddit_client() -> praw.Reddit:
     """Build an authenticated read-only PRAW client from environment variables."""
     return praw.Reddit(
-        client_id=os.environ["REDDIT_CLIENT_ID"],
-        client_secret=os.environ["REDDIT_CLIENT_SECRET"],
-        user_agent=os.environ.get("REDDIT_USER_AGENT", "trading-system-sentiment-bot/1.0"),
+        # .strip() guards against stray whitespace/tab characters that can
+        # sneak in when a secret is copy-pasted into a CI provider's UI --
+        # Reddit's OAuth endpoint rejects a corrupted secret with a plain 401.
+        client_id=os.environ["REDDIT_CLIENT_ID"].strip(),
+        client_secret=os.environ["REDDIT_CLIENT_SECRET"].strip(),
+        user_agent=os.environ.get("REDDIT_USER_AGENT", "trading-system-sentiment-bot/1.0").strip(),
     )
 
 

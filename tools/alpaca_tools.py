@@ -16,9 +16,11 @@ load_dotenv(os.path.join(os.path.dirname(__file__), "..", "config", ".env"))
 
 def get_alpaca_client() -> REST:
     """Build an authenticated Alpaca REST client from environment variables."""
-    base_url = os.environ.get("APCA_API_BASE_URL", "https://paper-api.alpaca.markets")
-    key_id = os.environ["APCA_API_KEY_ID"]
-    secret_key = os.environ["APCA_API_SECRET_KEY"]
+    # .strip() guards against stray whitespace/tab characters that can sneak
+    # in when a secret is copy-pasted into a CI provider's UI.
+    base_url = os.environ.get("APCA_API_BASE_URL", "https://paper-api.alpaca.markets").strip()
+    key_id = os.environ["APCA_API_KEY_ID"].strip()
+    secret_key = os.environ["APCA_API_SECRET_KEY"].strip()
 
     if "paper-api" not in base_url:
         raise RuntimeError(
