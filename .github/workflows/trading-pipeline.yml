@@ -7,13 +7,21 @@ on:
   workflow_dispatch:
     inputs:
       symbols:
-        description: "Comma-separated ticker symbols to scan (blank = main.py's ~75-symbol default watchlist)"
+        description: "Comma-separated ticker symbols to scan (blank = auto-select affordable symbols from the ~560-symbol candidate pool)"
         required: false
         default: ""
       max_position_usd:
         description: "Hard dollar ceiling for a single position, regardless of equity"
         required: false
         default: "50"
+      price_bracket_pct:
+        description: "Per-share price ceiling as a fraction of equity (0.125 = 12.5%), floor $1. Ignored if symbols is set."
+        required: false
+        default: "0.125"
+      max_candidates:
+        description: "Cap on how many price-affordable candidates get the full pipeline in one run. Ignored if symbols is set."
+        required: false
+        default: "76"
       execute:
         description: "Actually submit the paper trade via Alpaca"
         required: false
@@ -27,6 +35,9 @@ jobs:
   run-pipeline:
     runs-on: ubuntu-latest
     steps:
+      - name: Record job start time
+        run: echo "JOB_START=$(date -u +%Y-%m-%dT%H:%M:%S)" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
@@ -48,10 +59,14 @@ jobs:
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
           REDDIT_USER_AGENT: trading-system-sentiment-bot/1.0
         run: |
-          ARGS=(--max-position-usd "${{ github.event.inputs.max_position_usd || '50' }}")
+          ARGS=(
+            --max-position-usd "${{ github.event.inputs.max_position_usd || '50' }}"
+            --price-bracket-pct "${{ github.event.inputs.price_bracket_pct || '0.125' }}"
+            --max-candidates "${{ github.event.inputs.max_candidates || '76' }}"
+          )
           # Blank (scheduled runs, or a manual run left at the default) lets
-          # main.py's own ~75-symbol DEFAULT_WATCHLIST apply instead of
-          # duplicating that list here.
+          # main.py auto-select affordable symbols from its ~560-symbol
+          # candidate pool instead of duplicating that list here.
           if [ -n "${{ github.event.inputs.symbols }}" ]; then
             ARGS+=(--symbols "${{ github.event.inputs.symbols }}")
           fi
@@ -67,12 +82,51 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          if [ -f logs/history.json ]; then
-            git add logs/history.json
-            if ! git diff --cached --quiet; then
-              git commit -m "Update trade history log [skip ci]"
-              git push
-            fi
-          else
+
+          if [ ! -f logs/history.json ]; then
             echo "logs/history.json not written this run (pipeline likely failed before logging) -- nothing to commit."
+            exit 0
           fi
+
+          git add logs/history.json
+          if git diff --cached --quiet; then
+            echo "No changes to logs/history.json -- nothing to commit."
+            exit 0
+          fi
+          git commit -m "Update trade history log [skip ci]"
+
+          if git push; then
+            exit 0
+          fi
+
+          # Rejected -- another run's commit-and-push landed first (a manual
+          # trigger racing the 4-hour cron, or two manual triggers). Save just
+          # this run's own new records now, before touching git state further,
+          # then reconcile by content rather than a text-level rebase/merge:
+          # two concurrent runs both append to the same JSON array's tail,
+          # which git would likely see as a conflict on the same region. See
+          # scripts/reconcile_history_log.py for the reasoning in full.
+          echo "Push rejected -- reconciling with the latest origin/main..."
+          python3 scripts/reconcile_history_log.py save "$JOB_START"
+
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git reset --hard origin/main
+            python3 scripts/reconcile_history_log.py merge
+
+            git add logs/history.json
+            if git diff --cached --quiet; then
+              echo "Nothing new to commit after reconciliation (another run already captured equivalent data) -- done."
+              exit 0
+            fi
+            git commit -m "Update trade history log [skip ci]"
+
+            if git push; then
+              echo "Pushed on retry $attempt."
+              exit 0
+            fi
+            echo "Push still rejected (retry $attempt) -- trying again..."
+          done
+
+          echo "::error::Failed to push logs/history.json after retrying."
+          exit 1
