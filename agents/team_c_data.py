@@ -70,12 +70,17 @@ def compute_atr(df: pd.DataFrame, period: int = 14) -> float:
 
 
 def forecast_arima(prices: pd.Series, steps: int = 5) -> list:
-    model = ARIMA(prices, order=(1, 1, 1)).fit()
+    # Yahoo Finance's DatetimeIndex carries no explicit frequency, which
+    # statsmodels needs to compute an out-of-sample forecast range; a plain
+    # RangeIndex sidesteps that requirement since we only need N steps ahead.
+    series = prices.reset_index(drop=True)
+    model = ARIMA(series, order=(1, 1, 1)).fit()
     return model.forecast(steps=steps).tolist()
 
 
 def forecast_exponential_smoothing(prices: pd.Series, steps: int = 5) -> list:
-    model = ExponentialSmoothing(prices, trend="add", seasonal=None).fit()
+    series = prices.reset_index(drop=True)
+    model = ExponentialSmoothing(series, trend="add", seasonal=None).fit()
     return model.forecast(steps).tolist()
 
 
