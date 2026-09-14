@@ -61,8 +61,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add logs/history.json
-          if ! git diff --cached --quiet; then
-            git commit -m "Update trade history log [skip ci]"
-            git push
+          if [ -f logs/history.json ]; then
+            git add logs/history.json
+            if ! git diff --cached --quiet; then
+              git commit -m "Update trade history log [skip ci]"
+              git push
+            fi
+          else
+            echo "logs/history.json not written this run (pipeline likely failed before logging) -- nothing to commit."
           fi
