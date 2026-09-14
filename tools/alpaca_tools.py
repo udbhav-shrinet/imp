@@ -94,29 +94,37 @@ def submit_order(
     }
 
 
-def slice_order_twap(symbol: str, total_qty: int, side: str, slices: int = 4) -> list[dict]:
+def slice_order_twap(symbol: str, total_qty: float, side: str, slices: int = 4, whole_shares: bool = True) -> list[dict]:
     """
     Split a large order into `slices` equal child orders (TWAP-style) to
     simulate real-world slippage avoidance, even on paper trades.
 
-    Quantities are whole shares: Alpaca rejects fractional-share orders
-    on the short side outright ("fractional orders cannot be sold
-    short"), and fractional orders carry other restrictions (order
-    types, bracket orders) that whole shares sidestep entirely.
+    `whole_shares` defaults to True because Alpaca rejects fractional-share
+    orders on the short side outright ("fractional orders cannot be sold
+    short"). Long (buy) orders don't carry that restriction, so a small
+    account that needs to buy less than one share of a higher-priced
+    stock can pass `whole_shares=False` -- see agents/team_s_execution.py,
+    which is the only caller and decides this per order based on side.
     """
     if slices < 1:
         raise ValueError("slices must be >= 1")
 
-    total_qty = int(total_qty)
-    if total_qty < 1:
-        return []
-
-    per_slice_qty = total_qty // slices
-    remainder = total_qty - per_slice_qty * slices
+    if whole_shares:
+        total_qty = int(total_qty)
+        if total_qty < 1:
+            return []
+        per_slice_qty = total_qty // slices
+        remainder = total_qty - per_slice_qty * slices
+        slice_qtys = [per_slice_qty + (remainder if i == slices - 1 else 0) for i in range(slices)]
+    else:
+        if total_qty <= 0:
+            return []
+        per_slice_qty = round(total_qty / slices, 6)
+        remainder = round(total_qty - per_slice_qty * slices, 6)
+        slice_qtys = [round(per_slice_qty + (remainder if i == slices - 1 else 0), 6) for i in range(slices)]
 
     results = []
-    for i in range(slices):
-        qty = per_slice_qty + (remainder if i == slices - 1 else 0)
+    for qty in slice_qtys:
         if qty <= 0:
             continue
         results.append(submit_order(symbol=symbol, qty=qty, side=side))

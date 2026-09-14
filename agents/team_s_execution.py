@@ -67,21 +67,51 @@ def execute_team_a_report(report: dict, twap_slices: int = 4) -> dict:
     except Exception:
         affordable_usd = position_size_usd  # can't verify live -- fall through to Alpaca's own check
 
-    # Whole shares only -- Alpaca rejects fractional-share orders on the
-    # short side outright, and fractional orders carry other API
-    # restrictions besides.
-    qty = int(affordable_usd // price)
-    if qty < 1:
-        reason = (
-            f"Buying power (${affordable_usd:.2f}) buys less than one whole share of {symbol} at ${price:.2f}."
-            if affordable_usd < position_size_usd
-            else f"Position size (${position_size_usd:.2f}) buys less than one whole share at ${price:.2f}."
-        )
-        return {"executed": False, "reason": reason}
-
     side = "buy" if direction == "long" else "sell"
+
+    # Alpaca rejects fractional-share orders on the short side outright
+    # ("fractional orders cannot be sold short"), so shorts stay whole-share.
+    # Longs don't carry that restriction -- and on a small account, whole
+    # shares alone can mean nothing in the watchlist is ever cheap enough
+    # to buy even one, no matter how the position-size caps are tuned. A
+    # fractional buy lets a $200 account actually hold a slice of a
+    # higher-priced stock instead of always skipping it.
+    if side == "buy":
+        qty = round(affordable_usd / price, 4)
+        # Alpaca's own floor for a fractional order (avoids a broker-side
+        # rejection for a notional too small to be worth submitting).
+        min_notional = 1.0
+        if qty * price < min_notional:
+            reason = (
+                f"Buying power (${affordable_usd:.2f}) is below Alpaca's ${min_notional:.2f} "
+                f"fractional-order minimum for {symbol} at ${price:.2f}."
+                if affordable_usd < position_size_usd
+                else f"Position size (${position_size_usd:.2f}) is below Alpaca's ${min_notional:.2f} "
+                     f"fractional-order minimum at ${price:.2f}."
+            )
+            return {"executed": False, "reason": reason}
+    else:
+        qty = int(affordable_usd // price)
+        if qty < 1:
+            reason = (
+                f"Buying power (${affordable_usd:.2f}) buys less than one whole share of {symbol} at ${price:.2f} "
+                "(shorts can't be fractional)."
+                if affordable_usd < position_size_usd
+                else f"Position size (${position_size_usd:.2f}) buys less than one whole share at ${price:.2f} "
+                     "(shorts can't be fractional)."
+            )
+            return {"executed": False, "reason": reason}
+
+    # TWAP-slicing exists to reduce market impact on large orders. A $200
+    # account's fractional buys are typically $5-15 notional -- splitting
+    # that into 4 pieces has no slippage benefit and risks a per-slice
+    # notional under Alpaca's $1 fractional-order floor. Submit those as
+    # one order instead; whole-share sells keep the default slicing.
+    effective_slices = 1 if side == "buy" else twap_slices
     try:
-        fills = slice_order_twap(symbol=symbol, total_qty=qty, side=side, slices=twap_slices)
+        fills = slice_order_twap(
+            symbol=symbol, total_qty=qty, side=side, slices=effective_slices, whole_shares=(side == "sell")
+        )
     except Exception as exc:
         return {"executed": False, "reason": f"Order rejected by broker: {exc}"}
 
