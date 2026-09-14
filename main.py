@@ -29,15 +29,46 @@ from tools.run_logger import append_run_record, build_run_record
 load_dotenv(os.path.join(os.path.dirname(__file__), "config", ".env"))
 
 # A broad, liquid cross-section of the market rather than one symbol --
-# large caps across tech, finance, energy, healthcare, and consumer so
-# Team B's regime detection isn't just reading one sector's mood. Scanning
-# the literal entire market isn't practical (thousands of symbols, each
-# running a full ARIMA/GBM/Random-Forest pass) so this stands in as "the
+# large/mid caps spanning every major sector so Team B's regime detection
+# isn't just reading one sector's mood. Scanning the literal entire market
+# isn't practical (thousands of symbols, each running a full
+# ARIMA/GBM/Random-Forest pass) so this ~75-name list stands in for "the
 # market" -- extend it freely via --symbols.
 DEFAULT_WATCHLIST = [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
-    "META", "TSLA", "JPM", "XOM", "JNJ",
+    # Technology
+    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA", "AVGO", "ORCL", "CRM",
+    "ADBE", "CSCO", "AMD", "INTC", "QCOM", "TXN", "IBM", "NOW", "INTU", "AMAT",
+    # Financials
+    "JPM", "BAC", "WFC", "GS", "MS", "C", "AXP", "BLK", "SCHW", "USB",
+    # Healthcare
+    "JNJ", "UNH", "PFE", "MRK", "ABBV", "LLY", "TMO", "ABT", "BMY", "CVS",
+    # Energy
+    "XOM", "CVX", "COP", "SLB", "EOG",
+    # Consumer
+    "WMT", "PG", "KO", "PEP", "COST", "NKE", "MCD", "SBUX", "TGT", "HD", "LOW",
+    # Industrials
+    "BA", "CAT", "GE", "HON", "UPS", "LMT", "MMM", "DE",
+    # Communication services
+    "DIS", "CMCSA", "VZ", "T", "NFLX",
+    # Utilities
+    "NEE", "DUK", "SO",
+    # Materials
+    "LIN", "FCX",
+    # Real estate
+    "AMT", "PLD",
 ]
+
+# Position sizing is capped two ways at once -- whichever is smaller wins:
+#   1. a hard dollar ceiling (MAX_POSITION_USD), so no single trade can ever
+#      eat a large slice of a small account regardless of its equity, and
+#   2. a percentage of current equity (MAX_POSITION_PCT), so sizing scales
+#      down automatically if the account shrinks.
+# On a $200 account with the defaults below, that's min($20, $20) = $20 per
+# position -- small enough that a handful of approved theses in the same
+# batch still fit inside the account, and Team S's live buying-power check
+# (agents/team_s_execution.py) is the backstop if they don't.
+DEFAULT_MAX_POSITION_USD = 20.0
+DEFAULT_MAX_POSITION_PCT = 0.10
 
 
 def _try_get_account_info() -> dict | None:
@@ -47,6 +78,13 @@ def _try_get_account_info() -> dict | None:
     except Exception as exc:
         print(f"[Team S] Could not fetch Alpaca account info: {exc}")
         return None
+
+
+def compute_position_cap(account_info: dict | None, max_position_usd: float, max_position_pct: float) -> float:
+    """The dollar ceiling for a single position this run -- see the sizing note above."""
+    if account_info is None:
+        return max_position_usd  # no live account (e.g. a dry run without credentials) -- fall back to the flat ceiling
+    return min(max_position_usd, account_info["equity"] * max_position_pct)
 
 
 def run_pipeline_for_symbol(symbol: str, allocated_capital: float, dry_run: bool) -> dict:
@@ -87,12 +125,24 @@ def run_pipeline_for_symbol(symbol: str, allocated_capital: float, dry_run: bool
     return {"symbol": symbol, "dry_run": dry_run, "team_a_report": team_a_report, "execution_result": execution_result}
 
 
-def run_pipeline(symbols: list[str], allocated_capital: float, dry_run: bool = True) -> list[dict]:
+def run_pipeline(
+    symbols: list[str],
+    dry_run: bool = True,
+    max_position_usd: float = DEFAULT_MAX_POSITION_USD,
+    max_position_pct: float = DEFAULT_MAX_POSITION_PCT,
+) -> list[dict]:
     """Scan every symbol in `symbols` through the full pipeline, independently."""
+    # Priced once per batch from real equity, not a flag disconnected from the
+    # account -- see compute_position_cap()'s docstring for the reasoning.
+    account_info = _try_get_account_info()
+    position_cap = compute_position_cap(account_info, max_position_usd, max_position_pct)
+    equity_note = f"${account_info['equity']:.2f} equity" if account_info else "no live account"
+    print(f"Position cap this run: ${position_cap:.2f} per symbol ({equity_note}, {len(symbols)} symbols)")
+
     results = []
     for symbol in symbols:
         try:
-            results.append(run_pipeline_for_symbol(symbol, allocated_capital, dry_run))
+            results.append(run_pipeline_for_symbol(symbol, position_cap, dry_run))
         except Exception as exc:
             print(f"[{symbol}] Pipeline failed: {exc}")
             results.append({"symbol": symbol, "error": str(exc)})
@@ -106,7 +156,18 @@ if __name__ == "__main__":
         default=",".join(DEFAULT_WATCHLIST),
         help="Comma-separated ticker symbols to scan, e.g. 'AAPL,MSFT,TSLA'.",
     )
-    parser.add_argument("--capital", type=float, default=10000.0, help="Capital allocated per approved thesis (USD).")
+    parser.add_argument(
+        "--max-position-usd",
+        type=float,
+        default=DEFAULT_MAX_POSITION_USD,
+        help="Hard dollar ceiling for a single position, regardless of equity.",
+    )
+    parser.add_argument(
+        "--max-position-pct",
+        type=float,
+        default=DEFAULT_MAX_POSITION_PCT,
+        help="Ceiling for a single position as a fraction of current equity (0.10 = 10%%).",
+    )
     parser.add_argument(
         "--execute",
         action="store_true",
@@ -115,4 +176,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     symbol_list = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
-    run_pipeline(symbol_list, args.capital, dry_run=not args.execute)
+    run_pipeline(
+        symbol_list,
+        dry_run=not args.execute,
+        max_position_usd=args.max_position_usd,
+        max_position_pct=args.max_position_pct,
+    )

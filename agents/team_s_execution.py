@@ -15,7 +15,7 @@ paper trading endpoint.
 
 from crewai import Agent
 
-from tools.alpaca_tools import get_latest_price, slice_order_twap
+from tools.alpaca_tools import get_account_info, get_latest_price, slice_order_twap
 
 
 execution_agent = Agent(
@@ -55,18 +55,38 @@ def execute_team_a_report(report: dict, twap_slices: int = 4) -> dict:
         return {"executed": False, "reason": "Approved position size is zero."}
 
     price = get_latest_price(symbol)
+
+    # Team A sizes each thesis independently, so on a small account several
+    # approved theses in the same batch can collectively exceed what's
+    # actually left to spend. Re-check live buying power here -- the one
+    # place that actually knows the running total -- and clamp down to it
+    # rather than let the broker reject the order outright.
+    try:
+        buying_power = get_account_info()["buying_power"]
+        affordable_usd = min(position_size_usd, buying_power)
+    except Exception:
+        affordable_usd = position_size_usd  # can't verify live -- fall through to Alpaca's own check
+
     # Whole shares only -- Alpaca rejects fractional-share orders on the
     # short side outright, and fractional orders carry other API
     # restrictions besides.
-    qty = int(position_size_usd // price)
+    qty = int(affordable_usd // price)
     if qty < 1:
-        return {
-            "executed": False,
-            "reason": f"Position size (${position_size_usd:.2f}) buys less than one whole share at ${price:.2f}.",
-        }
+        reason = (
+            f"Buying power (${affordable_usd:.2f}) buys less than one whole share of {symbol} at ${price:.2f}."
+            if affordable_usd < position_size_usd
+            else f"Position size (${position_size_usd:.2f}) buys less than one whole share at ${price:.2f}."
+        )
+        return {"executed": False, "reason": reason}
 
     side = "buy" if direction == "long" else "sell"
-    fills = slice_order_twap(symbol=symbol, total_qty=qty, side=side, slices=twap_slices)
+    try:
+        fills = slice_order_twap(symbol=symbol, total_qty=qty, side=side, slices=twap_slices)
+    except Exception as exc:
+        return {"executed": False, "reason": f"Order rejected by broker: {exc}"}
+
+    if not fills:
+        return {"executed": False, "reason": "No child orders were accepted by the broker."}
 
     return {
         "executed": True,
