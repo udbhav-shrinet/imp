@@ -19,8 +19,19 @@ from agents.team_a_strategy import build_team_a_report
 from agents.team_b_quants import analyze_team_b
 from agents.team_c_data import gather_team_c_signals
 from agents.team_s_execution import execute_team_a_report
+from tools.alpaca_tools import get_account_info
+from tools.run_logger import append_run_record, build_run_record
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "config", ".env"))
+
+
+def _try_get_account_info() -> dict | None:
+    """Best-effort account snapshot for the dashboard; None if creds are missing/invalid."""
+    try:
+        return get_account_info()
+    except Exception as exc:
+        print(f"[Team S] Could not fetch Alpaca account info: {exc}")
+        return None
 
 
 def run_pipeline(symbol: str, allocated_capital: float, dry_run: bool = True) -> dict:
@@ -34,15 +45,28 @@ def run_pipeline(symbol: str, allocated_capital: float, dry_run: bool = True) ->
     team_a_report = build_team_a_report(team_b_output, team_c_output, allocated_capital)
     print(json.dumps({k: v for k, v in team_a_report.items() if k != "price_history"}, indent=2, default=str))
 
+    execution_result = None
     if dry_run:
         print("[Team S] Dry run enabled -- skipping execution.")
-        return {"dry_run": True, "team_a_report": team_a_report}
+    else:
+        print("[Team S] Reviewing Team A's report for execution...")
+        execution_result = execute_team_a_report(team_a_report)
+        print(json.dumps(execution_result, indent=2, default=str))
 
-    print("[Team S] Reviewing Team A's report for execution...")
-    execution_result = execute_team_a_report(team_a_report)
-    print(json.dumps(execution_result, indent=2, default=str))
+    account_info = _try_get_account_info()
+    record = build_run_record(
+        symbol=symbol,
+        capital=allocated_capital,
+        dry_run=dry_run,
+        team_c_output=team_c_output,
+        team_b_output=team_b_output,
+        team_a_report=team_a_report,
+        execution_result=execution_result,
+        account_info=account_info,
+    )
+    append_run_record(record)
 
-    return {"team_a_report": team_a_report, "execution_result": execution_result}
+    return {"dry_run": dry_run, "team_a_report": team_a_report, "execution_result": execution_result}
 
 
 if __name__ == "__main__":

@@ -1,65 +1,343 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Animated Hex String</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      background-color: #000;
-      overflow: hidden;
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Pipeline Dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page:           #f9f9f7;
+    --surface-1:      #fcfcfb;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6;
+    --good:           #0ca30c;
+    --critical:       #d03b3b;
+    --warning:        #fab219;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page:           #0d0d0d;
+      --surface-1:      #1a1a19;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --good:           #0ca30c;
+      --critical:       #e66767;
+      --warning:        #fab219;
     }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:           #0d0d0d;
+    --surface-1:      #1a1a19;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --gridline:       #2c2c2a;
+    --baseline:       #383835;
+    --border:         rgba(255,255,255,0.10);
+    --series-1:       #3987e5;
+    --good:           #0ca30c;
+    --critical:       #e66767;
+    --warning:        #fab219;
+  }
 
-    .hex-container {
-      font-family: 'Courier New', Courier, monospace;
-      font-size: 2rem;
-      color: #0f0;
-      white-space: nowrap;
-      animation: scrollHex 10s linear infinite;
-    }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 48px;
+    background: var(--page);
+    color: var(--text-primary);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
 
-    @keyframes scrollHex {
-      0% {
-        transform: translateX(100%);
-      }
-      100% {
-        transform: translateX(-100%);
-      }
-    }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .subtitle { color: var(--text-secondary); margin: 0 0 24px; }
 
-    .neon {
-      text-shadow: 0 0 5px #0f0, 0 0 10px #0f0, 0 0 20px #0f0;
-    }
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .kpi {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .kpi .label { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .kpi .value { font-size: 22px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .kpi .value.good { color: var(--good); }
+  .kpi .value.critical { color: var(--critical); }
 
-    .wrapper {
-      display: inline-block;
-      animation: fadeInOut 5s ease-in-out infinite;
-    }
+  .panel {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 24px;
+    overflow-x: auto;
+  }
+  .panel h2 { font-size: 14px; margin: 0 0 12px; color: var(--text-secondary); font-weight: 600; }
 
-    @keyframes fadeInOut {
-      0%, 100% {
-        opacity: 1;
-      }
-      50% {
-        opacity: 0.5;
-      }
-    }
+  svg text { fill: var(--text-muted); font-size: 11px; }
+  .chart-line { fill: none; stroke: var(--series-1); stroke-width: 2; }
+  .chart-grid { stroke: var(--gridline); stroke-width: 1; }
+  .chart-baseline { stroke: var(--baseline); stroke-width: 1; }
+  .crosshair { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 3 3; display: none; }
+  .hover-dot { fill: var(--series-1); display: none; }
+  .tooltip {
+    position: absolute; pointer-events: none; display: none;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 10px; font-size: 12px; color: var(--text-primary); white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
 
-  </style>
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 720px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--gridline); white-space: nowrap; }
+  th { color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; }
+  tr:last-child td { border-bottom: none; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+  }
+  .badge.good { color: var(--good); background: color-mix(in srgb, var(--good) 15%, transparent); }
+  .badge.critical { color: var(--critical); background: color-mix(in srgb, var(--critical) 15%, transparent); }
+  .badge.muted { color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 15%, transparent); }
+
+  .empty {
+    text-align: center; padding: 48px 16px; color: var(--text-secondary);
+  }
+  .empty code {
+    background: var(--gridline); padding: 2px 6px; border-radius: 4px; font-size: 12px;
+  }
+
+  footer { color: var(--text-muted); font-size: 12px; text-align: center; margin-top: 8px; }
+</style>
 </head>
 <body>
+<div class="wrap">
+  <h1>Trading Pipeline Dashboard</h1>
+  <p class="subtitle">Team C &rarr; Team B &rarr; Team A &rarr; Team S, one row per run. Paper trading only.</p>
 
-  <div class="hex-container neon">
-    <div class="wrapper">
-      4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 41 77 4D 44 41 67 4D 44 41 78 4D 44 45 78 4D 44 45 67 4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 41 77 4D 44 41 67 4D 44 41 78 4D 44 45 78 4D 44 45 67 4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 45 78 4D 54 41
-    </div>
+  <div id="content">
+    <div class="empty">Loading run history&hellip;</div>
   </div>
 
+  <footer id="footer"></footer>
+</div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const HISTORY_URL = './logs/history.json';
+const REFRESH_MS = 60000;
+
+function fmtMoney(n) {
+  if (n === null || n === undefined) return '—';
+  return '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+function fmtPct(n) {
+  if (n === null || n === undefined) return '—';
+  return (Number(n) * 100).toFixed(1) + '%';
+}
+function fmtTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function statusBadge(text, kind) {
+  return `<span class="badge ${kind}">${text}</span>`;
+}
+
+function renderEmpty(message) {
+  document.getElementById('content').innerHTML = `
+    <div class="empty">
+      <p>${message}</p>
+      <p>Runs are written by <code>.github/workflows/trading-pipeline.yml</code> to
+      <code>logs/history.json</code> — check back after the next scheduled run,
+      or trigger it manually from the Actions tab.</p>
+    </div>`;
+}
+
+function buildEquitySeries(history) {
+  return history
+    .filter(r => r.account && typeof r.account.equity === 'number')
+    .map(r => ({ t: r.run_at, equity: r.account.equity }));
+}
+
+function renderEquityChart(series) {
+  if (series.length < 2) {
+    return '<p style="color:var(--text-muted)">Not enough account snapshots yet to draw an equity curve (need Alpaca credentials configured and at least two runs).</p>';
+  }
+  const W = 1000, H = 220, PAD = 32;
+  const values = series.map(s => s.equity);
+  const minV = Math.min(...values), maxV = Math.max(...values);
+  const range = (maxV - minV) || 1;
+  const xStep = (W - PAD * 2) / (series.length - 1);
+  const points = series.map((s, i) => {
+    const x = PAD + i * xStep;
+    const y = H - PAD - ((s.equity - minV) / range) * (H - PAD * 2);
+    return { x, y, ...s };
+  });
+  const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+  const gridY = [0, 0.25, 0.5, 0.75, 1].map(f => H - PAD - f * (H - PAD * 2));
+
+  const pointsData = JSON.stringify(points.map(p => ({ x: p.x, y: p.y, t: p.t, equity: p.equity })));
+
+  return `
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;" id="equity-svg">
+      ${gridY.map(y => `<line class="chart-grid" x1="${PAD}" x2="${W - PAD}" y1="${y}" y2="${y}" />`).join('')}
+      <line class="chart-baseline" x1="${PAD}" x2="${W - PAD}" y1="${H - PAD}" y2="${H - PAD}" />
+      <path class="chart-line" d="${path}" />
+      <line class="crosshair" id="crosshair" x1="0" x2="0" y1="${PAD}" y2="${H - PAD}" />
+      <circle class="hover-dot" id="hover-dot" r="4" />
+      <rect x="0" y="0" width="${W}" height="${H}" fill="transparent" id="hover-target" />
+    </svg>
+    <script id="equity-points" type="application/json">${pointsData}</script>
+  `;
+}
+
+function wireEquityHover() {
+  const svg = document.getElementById('equity-svg');
+  if (!svg) return;
+  const target = document.getElementById('hover-target');
+  const crosshair = document.getElementById('crosshair');
+  const dot = document.getElementById('hover-dot');
+  const tooltip = document.getElementById('tooltip');
+  const pointsEl = document.getElementById('equity-points');
+  const points = JSON.parse(pointsEl.textContent);
+
+  target.addEventListener('mousemove', (e) => {
+    const rect = svg.getBoundingClientRect();
+    const scaleX = 1000 / rect.width;
+    const mouseX = (e.clientX - rect.left) * scaleX;
+    let nearest = points[0];
+    for (const p of points) {
+      if (Math.abs(p.x - mouseX) < Math.abs(nearest.x - mouseX)) nearest = p;
+    }
+    crosshair.style.display = 'block';
+    crosshair.setAttribute('x1', nearest.x);
+    crosshair.setAttribute('x2', nearest.x);
+    dot.style.display = 'block';
+    dot.setAttribute('cx', nearest.x);
+    dot.setAttribute('cy', nearest.y);
+
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX + 12) + 'px';
+    tooltip.style.top = (e.clientY - 12) + 'px';
+    tooltip.innerHTML = `<strong>${fmtMoney(nearest.equity)}</strong><br>${fmtTime(nearest.t)}`;
+  });
+  target.addEventListener('mouseleave', () => {
+    crosshair.style.display = 'none';
+    dot.style.display = 'none';
+    tooltip.style.display = 'none';
+  });
+}
+
+function renderRunRow(r) {
+  const teamA = r.team_a_report || {};
+  const exec = r.execution_result;
+  const direction = teamA.direction || '—';
+  const approvedBadge = teamA.approved
+    ? statusBadge('approved', 'good')
+    : statusBadge(teamA.veto_reason ? 'vetoed' : 'no trade', teamA.veto_reason ? 'critical' : 'muted');
+  const execBadge = !exec
+    ? statusBadge('dry run', 'muted')
+    : (exec.executed ? statusBadge('executed', 'good') : statusBadge(exec.reason || 'skipped', 'muted'));
+  const rsi = r.team_c?.statistics?.rsi_14;
+  const probUp = r.team_b?.ml_engineer?.probability_up_next_day;
+  const regime = r.team_b?.mathematician?.market_regime;
+
+  return `
+    <tr>
+      <td>${fmtTime(r.run_at)}</td>
+      <td>${r.symbol}</td>
+      <td>${rsi !== undefined ? rsi.toFixed(1) : '—'}</td>
+      <td>${regime || '—'}</td>
+      <td>${probUp !== undefined ? fmtPct(probUp) : '—'}</td>
+      <td>${direction}</td>
+      <td>${approvedBadge}</td>
+      <td>${fmtMoney(teamA.position_size_usd)}</td>
+      <td>${execBadge}</td>
+      <td>${r.account ? fmtMoney(r.account.equity) : '—'}</td>
+    </tr>`;
+}
+
+function render(history) {
+  if (!history || history.length === 0) {
+    renderEmpty('No runs logged yet.');
+    return;
+  }
+
+  const latest = history[history.length - 1];
+  const executedCount = history.filter(r => r.execution_result?.executed).length;
+  const approvedCount = history.filter(r => r.team_a_report?.approved).length;
+  const latestEquity = latest.account?.equity;
+
+  const equitySeries = buildEquitySeries(history);
+  const rows = history.slice().reverse().slice(0, 100).map(renderRunRow).join('');
+
+  document.getElementById('content').innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="label">Latest Equity</div><div class="value">${fmtMoney(latestEquity)}</div></div>
+      <div class="kpi"><div class="label">Total Runs</div><div class="value">${history.length}</div></div>
+      <div class="kpi"><div class="label">Approved Theses</div><div class="value">${approvedCount}</div></div>
+      <div class="kpi"><div class="label">Trades Executed</div><div class="value">${executedCount}</div></div>
+      <div class="kpi"><div class="label">Last Run</div><div class="value" style="font-size:15px">${fmtTime(latest.run_at)}</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Account Equity</h2>
+      ${renderEquityChart(equitySeries)}
+    </div>
+
+    <div class="panel">
+      <h2>Run History (most recent first)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th><th>Symbol</th><th>RSI(14)</th><th>Regime</th>
+            <th>P(up)</th><th>Thesis</th><th>Team A</th><th>Size</th><th>Team S</th><th>Equity</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+  wireEquityHover();
+}
+
+async function load() {
+  try {
+    const res = await fetch(HISTORY_URL + '?_=' + Date.now());
+    if (!res.ok) {
+      renderEmpty('No run history yet (logs/history.json not found).');
+      return;
+    }
+    const history = await res.json();
+    render(history);
+    document.getElementById('footer').textContent = 'Last refreshed ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    renderEmpty('Could not load run history: ' + e.message);
+  }
+}
+
+load();
+setInterval(load, REFRESH_MS);
+</script>
 </body>
 </html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Animated Hex String</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #000;
+      overflow: hidden;
+    }
+
+    .hex-container {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 2rem;
+      color: #0f0;
+      white-space: nowrap;
+      animation: scrollHex 10s linear infinite;
+    }
+
+    @keyframes scrollHex {
+      0% {
+        transform: translateX(100%);
+      }
+      100% {
+        transform: translateX(-100%);
+      }
+    }
+
+    .neon {
+      text-shadow: 0 0 5px #0f0, 0 0 10px #0f0, 0 0 20px #0f0;
+    }
+
+    .wrapper {
+      display: inline-block;
+      animation: fadeInOut 5s ease-in-out infinite;
+    }
+
+    @keyframes fadeInOut {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="hex-container neon">
+    <div class="wrapper">
+      4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 41 77 4D 44 41 67 4D 44 41 78 4D 44 45 78 4D 44 45 67 4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 41 77 4D 44 41 67 4D 44 41 78 4D 44 45 78 4D 44 45 67 4D 44 41 78 4D 44 45 78 4D 54 41 67 4D 44 41 78 4D 44 45 78 4D 54 41
+    </div>
+  </div>
+
+</body>
+</html>

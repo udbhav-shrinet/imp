@@ -1,21 +1,21 @@
 # Knowledge Base
 
-Drop reference PDFs here for retrieval-augmented context per team. Suggested
-titles (source your own copies; none are bundled in this repo):
+The actual books referenced in the original spec (Hilpisch, Lopez de
+Prado, Shreve, Harris, Chan, Taleb) are commercial and copyrighted, so
+they aren't bundled here — downloading/redistributing full copies would
+be infringement. If you own them, they remain a good deeper read.
 
-**Team C — Data & Signals**
-- *Python for Finance: Mastering Data-Driven Finance* — Yves Hilpisch
-- *Text Mining in Practice with R and Python*
+Instead, each team has a markdown file with the exact formulas/algorithms
+this codebase implements and a pointer to the corresponding function:
 
-**Team B — Quants**
-- *Advances in Financial Machine Learning* — Marcos Lopez de Prado
-- *Stochastic Calculus for Finance I & II* — Steven E. Shreve
-- *Trading and Exchanges: Market Microstructure for Practitioners* — Larry Harris
+- [`team_c_data_signals.md`](./team_c_data_signals.md) — SMA, RSI,
+  Bollinger Bands, Z-score, ATR, ARIMA, exponential smoothing, VADER, TF-IDF
+- [`team_b_quants.md`](./team_b_quants.md) — Ito's Lemma / GBM,
+  Ornstein-Uhlenbeck, regime detection, Random Forest + walk-forward validation
+- [`team_a_strategy_risk.md`](./team_a_strategy_risk.md) — Kelly
+  Criterion, VaR/CVaR, GARCH(1,1), cointegration (sketch)
+- [`team_s_execution.md`](./team_s_execution.md) — TWAP slicing, VWAP (sketch)
 
-**Team A — Strategy & Risk**
-- *Quantitative Trading* — Ernie Chan
-- *Dynamic Hedging: Managing Vanilla and Exotic Options* — Nassim Nicholas Taleb
-- *Algorithmic Trading: Winning Strategies and Their Rationale* — Ernie Chan
-
-Wire these into a retriever (e.g. a LangChain `RetrievalQA` chain over a
-vector store) and attach it to each team's agents as needed.
+If you want true retrieval-augmented context instead (the original ask),
+buy the PDFs, drop them in this folder, and wire a LangChain
+`RetrievalQA` chain over a vector store into each team's agents.
