@@ -33,6 +33,29 @@ python main.py --symbol AAPL --capital 10000
 python main.py --symbol AAPL --capital 10000 --execute
 ```
 
+## Running on a schedule (GitHub Actions)
+
+`.github/workflows/trading-pipeline.yml` runs the pipeline automatically
+every weekday shortly after market open, and can also be triggered
+manually from the Actions tab (`Run workflow`, with `symbol`, `capital`,
+and `execute` inputs).
+
+Add these as **repository secrets** (Settings → Secrets and variables →
+Actions) before enabling it:
+
+- `APCA_API_KEY_ID`
+- `APCA_API_SECRET_KEY`
+- `REDDIT_CLIENT_ID`
+- `REDDIT_CLIENT_SECRET`
+
+The workflow always targets the paper trading endpoint and defaults to a
+dry run (analysis only, no order placed) unless `execute` is set to
+`true`. Output is visible in the workflow run's logs.
+
+GitHub Pages is not used here — Pages only serves static files and can't
+run Python, hold API secrets, or execute a scheduled backend job, which
+is what this pipeline needs.
+
 ## Project Structure
 
 ```
@@ -43,7 +66,7 @@ agents/
   team_s_execution.py    # Execution agent (Alpaca paper trading only)
 tools/
   alpaca_tools.py        # Alpaca REST client, order submission, TWAP slicing
-  reddit_news_scraper.py # Yahoo Finance, PRAW (Reddit), NewsAPI scraping
+  reddit_news_scraper.py # Yahoo Finance, PRAW (Reddit), RSS news scraping
 config/
   .env.example           # Template for required environment variables
 knowledge_base/          # Reference PDFs/books for RAG (not bundled)

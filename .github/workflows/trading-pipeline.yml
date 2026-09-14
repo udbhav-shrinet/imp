@@ -1,0 +1,52 @@
+name: Trading Pipeline
+
+on:
+  schedule:
+    # 13:35 UTC = 9:35am ET (5 minutes after the market open), weekdays only.
+    - cron: "35 13 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: "Ticker symbol to analyze"
+        required: false
+        default: "AAPL"
+      capital:
+        description: "Capital allocated to this thesis (USD)"
+        required: false
+        default: "10000"
+      execute:
+        description: "Actually submit the paper trade via Alpaca"
+        required: false
+        default: "false"
+        type: boolean
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download NLTK VADER lexicon
+        run: python -m nltk.downloader vader_lexicon
+
+      - name: Run pipeline
+        env:
+          APCA_API_BASE_URL: https://paper-api.alpaca.markets
+          APCA_API_KEY_ID: ${{ secrets.APCA_API_KEY_ID }}
+          APCA_API_SECRET_KEY: ${{ secrets.APCA_API_SECRET_KEY }}
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USER_AGENT: trading-system-sentiment-bot/1.0
+        run: |
+          ARGS=(--symbol "${{ github.event.inputs.symbol || 'AAPL' }}" --capital "${{ github.event.inputs.capital || '10000' }}")
+          if [ "${{ github.event.inputs.execute }}" = "true" ]; then
+            ARGS+=(--execute)
+          fi
+          python main.py "${ARGS[@]}"
