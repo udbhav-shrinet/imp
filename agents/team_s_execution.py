@@ -55,9 +55,15 @@ def execute_team_a_report(report: dict, twap_slices: int = 4) -> dict:
         return {"executed": False, "reason": "Approved position size is zero."}
 
     price = get_latest_price(symbol)
-    qty = round(position_size_usd / price, 4)
-    if qty <= 0:
-        return {"executed": False, "reason": "Computed order quantity is zero."}
+    # Whole shares only -- Alpaca rejects fractional-share orders on the
+    # short side outright, and fractional orders carry other API
+    # restrictions besides.
+    qty = int(position_size_usd // price)
+    if qty < 1:
+        return {
+            "executed": False,
+            "reason": f"Position size (${position_size_usd:.2f}) buys less than one whole share at ${price:.2f}.",
+        }
 
     side = "buy" if direction == "long" else "sell"
     fills = slice_order_twap(symbol=symbol, total_qty=qty, side=side, slices=twap_slices)
