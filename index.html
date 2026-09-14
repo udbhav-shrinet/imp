@@ -196,7 +196,11 @@ function renderEquityChart(series) {
   const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
   const gridY = [0, 0.25, 0.5, 0.75, 1].map(f => H - PAD - f * (H - PAD * 2));
 
-  const pointsData = JSON.stringify(points.map(p => ({ x: p.x, y: p.y, t: p.t, equity: p.equity })));
+  // Kept in a module-level variable (not a nested script element) so
+  // this file's own outer script block never contains a literal
+  // end-of-script tag, which would otherwise terminate it early and
+  // dump the rest of the JS onto the page as plain text.
+  lastEquityPoints = points.map(p => ({ x: p.x, y: p.y, t: p.t, equity: p.equity }));
 
   return `
     <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;" id="equity-svg">
@@ -207,9 +211,10 @@ function renderEquityChart(series) {
       <circle class="hover-dot" id="hover-dot" r="4" />
       <rect x="0" y="0" width="${W}" height="${H}" fill="transparent" id="hover-target" />
     </svg>
-    <script id="equity-points" type="application/json">${pointsData}</script>
   `;
 }
+
+let lastEquityPoints = [];
 
 function wireEquityHover() {
   const svg = document.getElementById('equity-svg');
@@ -218,8 +223,7 @@ function wireEquityHover() {
   const crosshair = document.getElementById('crosshair');
   const dot = document.getElementById('hover-dot');
   const tooltip = document.getElementById('tooltip');
-  const pointsEl = document.getElementById('equity-points');
-  const points = JSON.parse(pointsEl.textContent);
+  const points = lastEquityPoints;
 
   target.addEventListener('mousemove', (e) => {
     const rect = svg.getBoundingClientRect();

@@ -94,20 +94,29 @@ def submit_order(
     }
 
 
-def slice_order_twap(symbol: str, total_qty: float, side: str, slices: int = 4) -> list[dict]:
+def slice_order_twap(symbol: str, total_qty: int, side: str, slices: int = 4) -> list[dict]:
     """
     Split a large order into `slices` equal child orders (TWAP-style) to
     simulate real-world slippage avoidance, even on paper trades.
+
+    Quantities are whole shares: Alpaca rejects fractional-share orders
+    on the short side outright ("fractional orders cannot be sold
+    short"), and fractional orders carry other restrictions (order
+    types, bracket orders) that whole shares sidestep entirely.
     """
     if slices < 1:
         raise ValueError("slices must be >= 1")
 
-    per_slice_qty = round(total_qty / slices, 4)
+    total_qty = int(total_qty)
+    if total_qty < 1:
+        return []
+
+    per_slice_qty = total_qty // slices
+    remainder = total_qty - per_slice_qty * slices
+
     results = []
-    remaining = total_qty
     for i in range(slices):
-        qty = per_slice_qty if i < slices - 1 else round(remaining, 4)
-        remaining -= qty
+        qty = per_slice_qty + (remainder if i == slices - 1 else 0)
         if qty <= 0:
             continue
         results.append(submit_order(symbol=symbol, qty=qty, side=side))
