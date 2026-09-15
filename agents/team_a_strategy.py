@@ -167,12 +167,17 @@ def form_trade_thesis(team_b_output: dict) -> dict:
     ou = team_b_output["mathematician"]["ornstein_uhlenbeck"]
     rsi = team_b_output["team_c_statistics"].get("rsi_14")
     macro_score = team_b_output["economist"]["macro_score"]
+    # No FRED reading at all (no key configured, or the API failed) scores
+    # 0.0, which is indistinguishable from genuinely neutral macro. Unknown
+    # macro is not evidence against a thesis, so it neither downgrades nor
+    # vetoes -- only a real reading does.
+    macro_available = team_b_output["economist"].get("macro_available", True)
 
     confidence = abs(probability_up - 0.5) * 2  # 0..1
     macro_note = ""
 
     if probability_up > 0.55 and regime in ("bull", "sideways"):
-        if macro_score > 0:
+        if not macro_available or macro_score > 0:
             direction = "long"
         elif macro_score > MACRO_HOSTILE_THRESHOLD:
             direction = "long"

@@ -123,8 +123,22 @@ def align_macro_score(dates: pd.Index, macro_score_history: pd.Series, fallback:
     """
     if macro_score_history.empty:
         return pd.Series(fallback, index=dates)
-    reindexed = macro_score_history.reindex(macro_score_history.index.union(dates)).sort_index().ffill()
-    return reindexed.reindex(dates).fillna(fallback)
+
+    # yfinance returns a tz-aware index (America/New_York); FRED dates are
+    # plain calendar dates, so the macro series is tz-naive. Comparing the
+    # two directly raises ("Cannot compare tz-naive and tz-aware
+    # timestamps"), so both sides are normalized to a plain calendar date
+    # before the as-of join, then the caller's original index is restored
+    # so the result assigns back onto the price rows it came from.
+    target = pd.DatetimeIndex(dates)
+    if target.tz is not None:
+        target = target.tz_localize(None)
+    target = target.normalize()
+
+    reindexed = macro_score_history.reindex(macro_score_history.index.union(target)).sort_index().ffill()
+    aligned = reindexed.reindex(target).fillna(fallback)
+    aligned.index = dates
+    return aligned
 
 
 def build_features(
@@ -336,6 +350,11 @@ def analyze_team_b(
 
     economist_output = {
         "macro_score": macro_score,
+        # A score of 0.0 is ambiguous on its own: it's both "genuinely
+        # neutral macro" and "no FRED reading available at all". The Trader
+        # needs to tell those apart -- unknown macro must not be treated as
+        # a reason to downgrade conviction the way lukewarm macro is.
+        "macro_available": macro_snapshot.get("t10y2y") is not None or macro_snapshot.get("vixcls") is not None,
         "t10y2y": macro_snapshot.get("t10y2y"),
         "vixcls": macro_snapshot.get("vixcls"),
         "sentiment_context": team_c_output["sentiment"],
