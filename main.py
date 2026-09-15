@@ -22,11 +22,12 @@ import random
 from dotenv import load_dotenv
 
 from agents.team_a_strategy import build_team_a_report
-from agents.team_b_quants import analyze_team_b
+from agents.team_b_quants import analyze_team_b, build_macro_score_history
 from agents.team_c_data import gather_team_c_signals
 from agents.team_s_execution import execute_team_a_report
 from symbol_universe import SP500_CANDIDATES
 from tools.alpaca_tools import get_account_info, get_latest_prices
+from tools.fred_tools import get_macro_history, get_macro_snapshot
 from tools.run_logger import append_run_record, build_run_record
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "config", ".env"))
@@ -144,13 +145,19 @@ def select_affordable_symbols(
     return affordable
 
 
-def run_pipeline_for_symbol(symbol: str, allocated_capital: float, dry_run: bool) -> dict:
+def run_pipeline_for_symbol(
+    symbol: str,
+    allocated_capital: float,
+    dry_run: bool,
+    macro_snapshot: dict | None = None,
+    macro_score_history=None,
+) -> dict:
     print(f"\n=== {symbol} ===")
     print(f"[Team C] Gathering data & signals for {symbol}...")
     team_c_output = gather_team_c_signals(symbol)
 
     print("[Team B] Running quantitative analysis...")
-    team_b_output = analyze_team_b(team_c_output)
+    team_b_output = analyze_team_b(team_c_output, macro_snapshot, macro_score_history)
 
     print("[Team A] Forming trade thesis and applying risk management...")
     team_a_report = build_team_a_report(team_b_output, team_c_output, allocated_capital)
@@ -210,10 +217,23 @@ def run_pipeline(
 
     print(f"Position cap this run: ${position_cap:.2f} per symbol ({equity_note}, {len(symbols)} symbols)")
 
+    # Macro data doesn't vary by symbol, so it's fetched once per run here
+    # and threaded through every symbol's Team B call, rather than once per
+    # symbol (which would multiply FRED calls by the size of the pool for
+    # no benefit -- same two numbers every time).
+    macro_snapshot = get_macro_snapshot()
+    macro_score_history = build_macro_score_history(get_macro_history())
+    print(
+        f"Macro snapshot this run: T10Y2Y={macro_snapshot['t10y2y']}, "
+        f"VIXCLS={macro_snapshot['vixcls']}"
+    )
+
     results = []
     for symbol in symbols:
         try:
-            results.append(run_pipeline_for_symbol(symbol, position_cap, dry_run))
+            results.append(
+                run_pipeline_for_symbol(symbol, position_cap, dry_run, macro_snapshot, macro_score_history)
+            )
         except Exception as exc:
             print(f"[{symbol}] Pipeline failed: {exc}")
             results.append({"symbol": symbol, "error": str(exc)})

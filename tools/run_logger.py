@@ -45,7 +45,7 @@ def build_run_record(
         "team_b": {
             "mathematician": team_b_output["mathematician"],
             "ml_engineer": team_b_output["ml_engineer"],
-            "economist": {"note": team_b_output["economist"]["note"]},
+            "economist": team_b_output["economist"],
         },
         "team_a_report": team_a_report,
         "execution_result": execution_result,
