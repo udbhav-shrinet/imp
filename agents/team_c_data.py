@@ -6,10 +6,14 @@ sentiment signals. Their combined output is handed up to Team B (Quants).
 No agent in this team is permitted to size or place trades.
 
 Theories applied:
-  - Data Puller: raw OHLCV retrieval (Yahoo Finance).
+  - Data Puller: raw OHLCV retrieval (Yahoo Finance, 2-year daily history),
+    plus daily log-returns r_t = ln(S_t / S_t-1) -- the stationary series
+    the Forecaster fits models on instead of raw (non-stationary) price.
   - Statistician: moving averages, RSI, standard deviation / Bollinger
-    Bands, Average True Range (ATR), Z-scores for mean reversion.
-  - Forecaster: ARIMA / exponential smoothing time-series projections.
+    Bands, Average True Range (ATR), Z-scores for mean reversion, MACD,
+    and EMA-9/EMA-21 trend crossover.
+  - Forecaster: ARIMA / exponential smoothing time-series projections,
+    fit on log-returns and converted back to price space.
   - Sentiment Analyst: VADER scoring + TF-IDF over Reddit/News text.
 """
 
@@ -69,19 +73,53 @@ def compute_atr(df: pd.DataFrame, period: int = 14) -> float:
     return float(true_range.rolling(period).mean().iloc[-1])
 
 
+def compute_log_returns(prices: pd.Series) -> pd.Series:
+    """r_t = ln(S_t / S_t-1) -- the stationary series ARIMA/ETS fit on below."""
+    return np.log(prices / prices.shift(1)).dropna()
+
+
+def compute_ema(prices: pd.Series, span: int) -> float:
+    return float(prices.ewm(span=span, adjust=False).mean().iloc[-1])
+
+
+def compute_macd(prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> dict:
+    ema_fast = prices.ewm(span=fast, adjust=False).mean()
+    ema_slow = prices.ewm(span=slow, adjust=False).mean()
+    macd_line = ema_fast - ema_slow
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    histogram = macd_line - signal_line
+    return {
+        "macd": float(macd_line.iloc[-1]),
+        "signal": float(signal_line.iloc[-1]),
+        "histogram": float(histogram.iloc[-1]),
+    }
+
+
+def _log_returns_to_price_forecast(last_price: float, log_return_forecast: list) -> list:
+    """Convert a forecast of log-returns back to price space: S_t+k = S_t * exp(cumsum(r)))."""
+    cumulative = np.cumsum(log_return_forecast)
+    return (last_price * np.exp(cumulative)).tolist()
+
+
 def forecast_arima(prices: pd.Series, steps: int = 5) -> list:
-    # Yahoo Finance's DatetimeIndex carries no explicit frequency, which
-    # statsmodels needs to compute an out-of-sample forecast range; a plain
-    # RangeIndex sidesteps that requirement since we only need N steps ahead.
-    series = prices.reset_index(drop=True)
-    model = ARIMA(series, order=(1, 1, 1)).fit()
-    return model.forecast(steps=steps).tolist()
+    """
+    Fits ARIMA on log-returns (stationary) rather than raw price, then
+    converts the returns forecast back to price space. Fitting directly on
+    price required a manual differencing term (order=(1,1,1)) to fake
+    stationarity; log-returns are stationary already, so plain AR/MA terms
+    (no differencing) apply cleanly.
+    """
+    log_returns = compute_log_returns(prices).reset_index(drop=True)
+    model = ARIMA(log_returns, order=(1, 0, 1)).fit()
+    forecasted_returns = model.forecast(steps=steps).tolist()
+    return _log_returns_to_price_forecast(float(prices.iloc[-1]), forecasted_returns)
 
 
 def forecast_exponential_smoothing(prices: pd.Series, steps: int = 5) -> list:
-    series = prices.reset_index(drop=True)
-    model = ExponentialSmoothing(series, trend="add", seasonal=None).fit()
-    return model.forecast(steps).tolist()
+    log_returns = compute_log_returns(prices).reset_index(drop=True)
+    model = ExponentialSmoothing(log_returns, trend="add", seasonal=None).fit()
+    forecasted_returns = model.forecast(steps).tolist()
+    return _log_returns_to_price_forecast(float(prices.iloc[-1]), forecasted_returns)
 
 
 def score_sentiment_vader(texts: list[str]) -> dict:
@@ -124,8 +162,9 @@ data_puller_agent = Agent(
 statistician_agent = Agent(
     role="Statistician",
     goal=(
-        "Compute moving averages, RSI, Bollinger Bands / standard deviation, ATR, and "
-        "Z-scores for mean reversion on the pulled price data."
+        "Compute moving averages, RSI, Bollinger Bands / standard deviation, ATR, "
+        "Z-scores for mean reversion, MACD, and EMA-9/EMA-21 trend crossover on the "
+        "pulled price data."
     ),
     backstory=(
         "A quantitative analyst grounded in classical technical statistics, translating "
@@ -163,8 +202,9 @@ sentiment_analyst_agent = Agent(
 
 def gather_team_c_signals(symbol: str) -> dict:
     """Orchestrate Team C's four agents' underlying logic into one signal packet."""
-    price_history = get_yahoo_price_history(symbol)
+    price_history = get_yahoo_price_history(symbol)  # 2y/1d, per Data Puller spec
     close = price_history["Close"]
+    log_returns = compute_log_returns(close)
 
     statistics = {
         **compute_moving_averages(close),
@@ -172,6 +212,9 @@ def gather_team_c_signals(symbol: str) -> dict:
         **compute_bollinger_bands(close),
         "z_score_20": compute_z_score(close),
         "atr_14": compute_atr(price_history),
+        "macd": compute_macd(close),
+        "ema_9": compute_ema(close, 9),
+        "ema_21": compute_ema(close, 21),
     }
 
     forecast = {
@@ -194,6 +237,7 @@ def gather_team_c_signals(symbol: str) -> dict:
     return {
         "symbol": symbol,
         "price_history": price_history,
+        "log_returns": log_returns,
         "statistics": statistics,
         "forecast": forecast,
         "sentiment": sentiment,

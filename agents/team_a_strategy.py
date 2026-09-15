@@ -9,9 +9,12 @@ execution -- Team A never places trades itself.
 
 Theories applied:
   - Trader: statistical arbitrage / pairs-trading style synthesis of
-    directional probability and mean-reversion signals into a thesis.
-  - Risker: Kelly Criterion position sizing, Value at Risk (VaR) /
-    Conditional VaR (CVaR), GARCH(1,1)-style volatility tightening.
+    directional probability and mean-reversion signals into a thesis,
+    gated by the macro regime score from Team B's Economist.
+  - Risker: Kelly Criterion position sizing (with a dynamic win/loss ratio
+    derived from the symbol's own historical return distribution, not a
+    static assumption), Value at Risk (VaR) / Conditional VaR (CVaR),
+    GARCH(1,1)-style volatility tightening.
 """
 
 import numpy as np
@@ -49,6 +52,38 @@ def historical_cvar(returns: np.ndarray, confidence: float = 0.95) -> float:
     if len(tail_losses) == 0:
         return var
     return float(-tail_losses.mean())
+
+
+DEFAULT_WIN_LOSS_RATIO = 1.5  # fallback when a symbol has too little history to derive one
+
+
+def compute_historical_win_loss_ratio(returns: np.ndarray) -> float:
+    """
+    Dynamic half-Kelly win/loss ratio: average magnitude of up days over
+    average magnitude of down days, across the 2-year daily return history
+    -- replacing the previous static assumption of 1.5 with the symbol's
+    own realized win/loss behavior.
+
+    This is a realized-return proxy for "average win / average loss"
+    rather than a literal day-by-day re-simulation of the Trader's thesis
+    rule across 2 years of history: doing that would mean re-running the
+    full ML/GBM/OU pipeline once per historical trading day, per symbol --
+    on a ~57-76 symbol pool per run, that would multiply this run's compute
+    cost by roughly 500x and blow through GitHub Actions' free-tier
+    minutes. The realized win/loss magnitude is a defensible, much cheaper
+    stand-in: it's exactly the quantity Kelly sizing needs (b = avg win /
+    avg loss), just computed from actual historical outcomes instead of a
+    guess.
+    """
+    wins = returns[returns > 0]
+    losses = returns[returns < 0]
+    if len(wins) == 0 or len(losses) == 0:
+        return DEFAULT_WIN_LOSS_RATIO
+    avg_win = float(wins.mean())
+    avg_loss = float(-losses.mean())
+    if avg_loss <= 0:
+        return DEFAULT_WIN_LOSS_RATIO
+    return avg_win / avg_loss
 
 
 def estimate_garch_volatility(returns: np.ndarray, omega: float = 1e-6, alpha: float = 0.1, beta: float = 0.85) -> float:
@@ -105,16 +140,47 @@ risker_agent = Agent(
 VAR_LIMIT = 0.05   # max acceptable 1-day 95% VaR as a fraction of position value
 MAX_POSITION_FRACTION = 0.25  # never risk more than 25% of allocated capital on one thesis
 
+MACRO_HOSTILE_THRESHOLD = -0.3  # below this, a long thesis is vetoed outright regardless of P(up)
+MACRO_DOWNGRADE_CONFIDENCE_FACTOR = 0.5  # borderline macro (0 to MACRO_HOSTILE_THRESHOLD) halves conviction
+
 
 def form_trade_thesis(team_b_output: dict) -> dict:
-    """Trader logic: synthesize a directional thesis from Team B's output."""
+    """
+    Trader logic: synthesize a directional thesis from Team B's output.
+
+    A long candidate (P(up) > 0.55 in a bull/sideways regime) is gated by
+    the Economist's macro_score:
+        macro_score > 0                          -> full-conviction long
+        MACRO_HOSTILE_THRESHOLD < macro_score <= 0 -> long, but downgraded
+                                                       conviction (macro is
+                                                       lukewarm, not yet a
+                                                       reason to skip)
+        macro_score <= MACRO_HOSTILE_THRESHOLD    -> vetoed to no_trade
+                                                       (macro is outright
+                                                       hostile to a long)
+    Short candidates aren't macro-gated the same way: a hostile macro
+    regime is generally *supportive* of a short thesis, not a reason to
+    downgrade it.
+    """
     probability_up = team_b_output["ml_engineer"]["probability_up_next_day"]
     regime = team_b_output["mathematician"]["market_regime"]
     ou = team_b_output["mathematician"]["ornstein_uhlenbeck"]
     rsi = team_b_output["team_c_statistics"].get("rsi_14")
+    macro_score = team_b_output["economist"]["macro_score"]
+
+    confidence = abs(probability_up - 0.5) * 2  # 0..1
+    macro_note = ""
 
     if probability_up > 0.55 and regime in ("bull", "sideways"):
-        direction = "long"
+        if macro_score > 0:
+            direction = "long"
+        elif macro_score > MACRO_HOSTILE_THRESHOLD:
+            direction = "long"
+            confidence *= MACRO_DOWNGRADE_CONFIDENCE_FACTOR
+            macro_note = f" Conviction downgraded -- lukewarm macro (macro_score={macro_score:.2f})."
+        else:
+            direction = "no_trade"
+            macro_note = f" Long thesis vetoed -- hostile macro (macro_score={macro_score:.2f})."
     elif probability_up < 0.45 and regime in ("bear", "sideways"):
         direction = "short"
     else:
@@ -123,13 +189,14 @@ def form_trade_thesis(team_b_output: dict) -> dict:
     return {
         "symbol": team_b_output["symbol"],
         "direction": direction,
-        "confidence": abs(probability_up - 0.5) * 2,  # 0..1
+        "confidence": confidence,
         "regime": regime,
         "mean_reversion_speed": ou["theta"],
         "rsi_14": rsi,
+        "macro_score": macro_score,
         "rationale": (
             f"P(up)={probability_up:.2f} in a '{regime}' regime with OU reversion "
-            f"speed theta={ou['theta']:.3f}."
+            f"speed theta={ou['theta']:.3f}, macro_score={macro_score:.2f}.{macro_note}"
         ),
     }
 
@@ -145,7 +212,7 @@ def apply_risk_management(thesis: dict, team_c_output: dict, allocated_capital: 
         return {**thesis, "approved": False, "veto_reason": "No directional edge identified.", "position_size_usd": 0.0}
 
     win_probability = thesis["confidence"] / 2 + 0.5
-    win_loss_ratio = 1.5  # assumed avg win / avg loss; refine with historical trade log in production
+    win_loss_ratio = compute_historical_win_loss_ratio(returns)
     kelly_size_fraction = kelly_fraction(win_probability, win_loss_ratio)
 
     var_95 = historical_var(returns)
@@ -172,6 +239,7 @@ def apply_risk_management(thesis: dict, team_c_output: dict, allocated_capital: 
         "approved": True,
         "veto_reason": None,
         "kelly_fraction": kelly_size_fraction,
+        "win_loss_ratio": win_loss_ratio,
         "var_95": var_95,
         "cvar_95": cvar_95,
         "garch_volatility": garch_vol,

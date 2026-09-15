@@ -66,10 +66,22 @@ Learning* is the standard reference — worth buying if you go deeper here.
 
 ## Economist
 
-Currently a qualitative pass-through: surfaces Team C's sentiment context
-alongside a reminder to check the macro backdrop (rate environment,
-sector rotation phase, bid-ask spread / liquidity) before Team A commits
-capital. This is the one agent left deliberately unquantified — plugging
-in a real data source (FRED for yield curves, a liquidity/spread feed)
-is the natural next step if you want it to contribute a hard signal
-rather than a checklist.
+A quantitative macro regime score, `macro_score`, computed from two free
+FRED series and normalized to [-1, 1]:
+
+```
+T10Y2Y (10Y-2Y yield spread): <0 -> -1 (inverted/recession risk)
+                               >0.5 -> +1 (steepening/expansion)
+                               otherwise -> linear interpolation
+VIXCLS (VIX close):           >25 -> -1 (risk-off)
+                               <18 -> +1 (risk-on)
+                               otherwise -> linear interpolation
+macro_score = clip(0.5 * yield_component + 0.5 * vix_component, -1, 1)
+```
+
+`compute_macro_score()` in `agents/team_b_quants.py`. Fetched once per
+pipeline run (not once per symbol) via `tools/fred_tools.py`, with a
+neutral-0 fallback per component if a reading is unavailable. Feeds both
+the ML Engineer (as a per-date-aligned training feature,
+`build_macro_score_history()` / `align_macro_score()`) and the Trader's
+long-thesis gate (see `team_a_strategy_risk.md`).

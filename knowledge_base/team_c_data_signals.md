@@ -46,17 +46,26 @@ ATR  = SMA_14(TR)
 
 ## Forecaster
 
-**ARIMA(1,1,1)** — one autoregressive lag, one order of differencing, one
-moving-average lag. Fit via `statsmodels.tsa.arima.model.ARIMA` and
+Both models below fit on the **log-return** series, `r_t = ln(S_t / S_t-1)`
+(`compute_log_returns()`), not raw price — log-returns are approximately
+stationary, where price is not. Forecasted returns are converted back to
+price space afterward: `S_hat_{t+k} = S_t * exp(cumsum(r_hat_1..k))`.
+
+**ARIMA(1,0,1)** — one autoregressive lag, one moving-average lag, no
+differencing term (the log-return series is already stationary, unlike
+fitting directly on price, which needed `order=(1,1,1)` to fake it via
+the differencing term). Fit via `statsmodels.tsa.arima.model.ARIMA` and
 forecast N steps ahead. `forecast_arima()`
 
-**Exponential Smoothing (additive trend, Holt's method)**
+**Exponential Smoothing (additive trend, Holt's method)**, fit on the
+same log-return series:
 ```
-level_t = alpha * P_t + (1 - alpha) * (level_{t-1} + trend_{t-1})
+level_t = alpha * r_t + (1 - alpha) * (level_{t-1} + trend_{t-1})
 trend_t = beta  * (level_t - level_{t-1}) + (1 - beta) * trend_{t-1}
 forecast_{t+h} = level_t + h * trend_t
 ```
 Parameters (alpha, beta) are fit by `statsmodels.tsa.holtwinters.ExponentialSmoothing`.
+`forecast_exponential_smoothing()`
 `forecast_exponential_smoothing()`
 
 ## Sentiment Analyst

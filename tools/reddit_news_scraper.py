@@ -78,7 +78,7 @@ def scrape_news_headlines(symbol: str, feed_templates: list[str] | None = None, 
     return articles
 
 
-def get_yahoo_price_history(symbol: str, period: str = "6mo", interval: str = "1d"):
+def get_yahoo_price_history(symbol: str, period: str = "2y", interval: str = "1d"):
     """
     Pull OHLCV price history from Yahoo Finance as a pandas DataFrame.
     Uses the `yfinance` library, which wraps Yahoo's public chart API.
