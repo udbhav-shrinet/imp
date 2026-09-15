@@ -1302,7 +1302,12 @@ async function load() {
   const content = document.getElementById('content');
   try {
     if (historyData.length) content.classList.add('stale');
-    const res = await fetch(HISTORY_URL + '?_=' + Date.now());
+    // `no-cache` revalidates every poll but still honours the ETag, so an
+    // unchanged log costs a 304 instead of re-downloading the whole file.
+    // A `?_=${Date.now()}` buster would make every URL unique and force a
+    // full transfer each time — the log only changes once per run, while
+    // this polls every 60s.
+    const res = await fetch(HISTORY_URL, { cache: 'no-cache' });
     if (!res.ok) { renderEmpty('No run history yet (logs/history.json not found).'); return; }
     historyData = await res.json();
     syncSymbolOptions();
