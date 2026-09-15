@@ -722,7 +722,7 @@ function renderMainTab(rows) {
 
     <div class="panel">
       <h2>Orders placed</h2>
-      <p class="note">Only scans where Team S actually submitted to the broker.</p>
+      <p class="note">Only scans where the Execution Commander submitted to the broker.</p>
       <div class="scroll">${tradeRows ? `<table>
         <thead><tr><th>Time</th><th>Symbol</th><th>Side</th><th>Qty</th><th>Ref. price</th><th>Notional</th><th>Child orders</th></tr></thead>
         <tbody>${tradeRows}</tbody></table>` : '<p class="nodata">No orders placed yet for this selection.</p>'}</div>
@@ -732,12 +732,12 @@ function renderMainTab(rows) {
       <h2>All scans</h2>
       <p class="note">Every symbol evaluated, most recent first — including the ones that were filtered out.</p>
       <div class="scroll"><table>
-        <thead><tr><th>Time</th><th>Symbol</th><th>P(up)</th><th>Thesis</th><th>Team A</th><th>Size</th><th>Team S</th></tr></thead>
+        <thead><tr><th>Time</th><th>Symbol</th><th>P(up)</th><th>Thesis</th><th>Council</th><th>Size</th><th>Execution</th></tr></thead>
         <tbody>${scanRows}</tbody></table></div>
     </div>`;
 }
 
-/* --------------------------------------------------------------- Team C */
+/* ------------------------------------------------------ Market Intelligence */
 
 function renderTeamCTab(rows) {
   const latest = latestPerSymbol(rows);
@@ -799,10 +799,18 @@ function renderTeamCTab(rows) {
     </div>`;
 }
 
-/* --------------------------------------------------------------- Team B */
+/* ------------------------------------------------------------- Quant Research */
 
 function renderTeamBTab(rows) {
   const latest = latestPerSymbol(rows);
+  const diagnosticRows = latest.filter(r => r.research?.ml_diagnostics);
+  const calibratedCount = diagnosticRows.filter(r => r.research.ml_diagnostics.calibrated).length;
+  const brierValues = diagnosticRows
+    .map(r => r.research.ml_diagnostics.oos_brier)
+    .filter(v => typeof v === 'number');
+  const avgBrier = brierValues.length
+    ? brierValues.reduce((sum, value) => sum + value, 0) / brierValues.length
+    : null;
   const probRows = latest
     .filter(r => typeof r.team_b?.ml_engineer?.probability_up_next_day === 'number')
     .map(r => {
@@ -862,7 +870,7 @@ function renderTeamBTab(rows) {
   const macroPanel = `
     <div class="panel chart">
       <h2>Macro regime over time — the Economist's call</h2>
-      <p class="note">One FRED read per run, shared by every symbol in it. Scored from the 10Y&minus;2Y Treasury spread and the VIX, normalised to &minus;1 (risk-off) &hellip; +1 (risk-on). Below &minus;0.3 Team A vetoes long theses outright.</p>
+      <p class="note">One FRED read per run, shared by every symbol. The score uses the 10Y&minus;2Y Treasury spread and VIX, normalised to &minus;1 (risk-off) &hellip; +1 (risk-on).</p>
       <div class="tiles" style="margin-bottom:14px">
         <div class="tile"><div class="label">Macro score</div><div class="value">${macroKnown ? (lastEcon.macro_score >= 0 ? '+' : '') + fmtNum(lastEcon.macro_score, 2) : '—'}</div><div class="sub">${esc(macroLabel)}</div></div>
         <div class="tile"><div class="label">10Y&minus;2Y spread</div><div class="value">${macroKnown && typeof lastEcon.t10y2y === 'number' ? fmtNum(lastEcon.t10y2y, 2) : '—'}</div><div class="sub">${macroKnown && typeof lastEcon.t10y2y === 'number' ? (lastEcon.t10y2y < 0 ? 'inverted' : 'positive') : 'no FRED key'}</div></div>
@@ -873,12 +881,31 @@ function renderTeamBTab(rows) {
         : `<p class="nodata">${macroKnown ? 'Only one run with macro data so far — the curve needs at least two.' : 'No macro data yet. Set FRED_API_KEY (free) to enable the Economist; until then it reports no opinion and never downgrades a thesis.'}</p>`}
     </div>`;
 
+  const validationPanel = diagnosticRows.length ? `
+    <div class="panel">
+      <h2>Walk-forward model diagnostics</h2>
+      <p class="note">Triple-barrier labels with a five-bar embargo. Calibrated probabilities are used only when sufficient out-of-sample predictions exist.</p>
+      <div class="tiles" style="margin-bottom:14px">
+        <div class="tile"><div class="label">Calibrated</div><div class="value">${calibratedCount}/${diagnosticRows.length}</div><div class="sub">symbol models</div></div>
+        <div class="tile"><div class="label">Average Brier</div><div class="value">${avgBrier === null ? '—' : fmtNum(avgBrier, 3)}</div><div class="sub">lower is better</div></div>
+        <div class="tile"><div class="label">OOS samples</div><div class="value">${diagnosticRows.reduce((sum, r) => sum + (r.research.ml_diagnostics.oos_samples || 0), 0)}</div><div class="sub">validation predictions</div></div>
+      </div>
+      <div class="scroll"><table>
+        <thead><tr><th>Symbol</th><th>Raw P(up)</th><th>Calibrated P(up)</th><th>Brier</th><th>OOS samples</th><th>Method</th></tr></thead>
+        <tbody>${diagnosticRows.map(r => {
+          const d = r.research.ml_diagnostics;
+          return `<tr><td><strong>${esc(r.symbol)}</strong></td><td class="num">${fmtPct(d.raw_probability)}</td><td class="num">${fmtPct(r.research.probability_up)}</td><td class="num">${fmtNum(d.oos_brier, 3)}</td><td class="num">${d.oos_samples || 0}</td><td>${d.calibrated ? badge('isotonic calibrated', 'good') : badge('raw fallback', 'muted')}</td></tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>` : '';
+
   return `
     ${macroPanel}
+    ${validationPanel}
 
     <div class="panel chart">
-      <h2>P(up next day) by symbol — the ML Engineer's call</h2>
-      <p class="note">Random Forest with walk-forward validation. Team A goes long above ${fmtPct(LONG_THRESHOLD)} and short below ${fmtPct(SHORT_THRESHOLD)}; between those lines it stands down.</p>
+      <h2>Calibrated P(up) by symbol</h2>
+      <p class="note">Random Forest with triple-barrier labels, purged walk-forward validation and isotonic calibration when sufficient out-of-sample predictions exist.</p>
       ${hBarChart(probRows, {
         domain: [0, 1],
         legend: [
@@ -893,7 +920,7 @@ function renderTeamBTab(rows) {
     <div class="grid-2">
       <div class="panel chart">
         <h2>Annualized volatility by symbol</h2>
-        <p class="note">From the Mathematician's GBM parameter fit — σ scaled to a year.</p>
+        <p class="note">Rolling annualized volatility used by the Quant Research Bureau for regime and sizing decisions.</p>
         ${hBarChart(volRows, { compact: true, tickFormat: t => (t * 100).toFixed(0) + '%' })}
       </div>
       <div class="panel">
@@ -905,17 +932,42 @@ function renderTeamBTab(rows) {
 
     <div class="panel">
       <h2>Quant detail</h2>
-      <p class="note">Mathematician (GBM, Ornstein-Uhlenbeck, regime) and ML Engineer output per scan. <strong>Adj. drift</strong> is the macro-damped drift actually fed to the GBM simulation — halved when macro is hostile <em>and</em> mean-reversion is weak.</p>
+      <p class="note">Quant Research output per scan, including regime, volatility and calibrated directional probability.</p>
       <div class="scroll"><table>
         <thead><tr><th>Time</th><th>Symbol</th><th>Regime</th><th>Ann. drift</th><th>Adj. drift</th><th>Ann. vol</th><th>OU θ</th><th>OU μ</th><th>P(up)</th></tr></thead>
         <tbody>${tableRows || '<tr><td colspan="9" class="nodata">No data.</td></tr>'}</tbody></table></div>
     </div>`;
 }
 
-/* --------------------------------------------------------------- Team A */
+/* ----------------------------------------------------------- Portfolio Council */
 
 function renderTeamATab(rows) {
   const latest = latestPerSymbol(rows);
+  const plan = latest.find(r => r.portfolio_plan)?.portfolio_plan;
+  const planRows = latest
+    .filter(r => r.portfolio_plan?.trades?.some(t => t.symbol === r.symbol))
+    .map(r => {
+      const trade = r.portfolio_plan.trades.find(t => t.symbol === r.symbol);
+      return { ...trade, symbol: r.symbol };
+    });
+  const latestPlan = plan || {};
+  const planTrades = planRows.length ? planRows : (latestPlan.trades || []);
+  const portfolioRiskPanel = latestPlan.constraints ? `
+    <div class="panel">
+      <h2>Portfolio Council risk gate</h2>
+      <p class="note">The council evaluates the batch as one portfolio, not as independent symbol approvals.</p>
+      <div class="tiles" style="margin-bottom:14px">
+        <div class="tile"><div class="label">Plan status</div><div class="value">${latestPlan.approved ? 'APPROVED' : 'VETOED'}</div><div class="sub">${latestPlan.risk_approved ? 'risk limits passed' : 'risk limits failed'}</div></div>
+        <div class="tile"><div class="label">Portfolio VaR</div><div class="value">${fmtPct(latestPlan.portfolio_var_95, 2)}</div><div class="sub">limit ${fmtPct(latestPlan.constraints.max_portfolio_var, 1)}</div></div>
+        <div class="tile"><div class="label">Portfolio CVaR</div><div class="value">${fmtPct(latestPlan.portfolio_cvar_95, 2)}</div><div class="sub">limit ${fmtPct(latestPlan.constraints.max_portfolio_cvar, 1)}</div></div>
+        <div class="tile"><div class="label">New exposure</div><div class="value">${fmtPct(latestPlan.constraints.max_new_exposure_pct, 0)}</div><div class="sub">cycle cap</div></div>
+        <div class="tile"><div class="label">Vol target</div><div class="value">${fmtPct(latestPlan.constraints.target_annual_volatility, 0)}</div><div class="sub">annualized</div></div>
+      </div>
+      <div class="scroll"><table>
+        <thead><tr><th>Symbol</th><th>Side</th><th>Notional</th><th>Risk fraction</th><th>Expected edge</th><th>Estimated cost</th><th>Stop distance</th></tr></thead>
+        <tbody>${planTrades.length ? planTrades.map(t => `<tr><td><strong>${esc(t.symbol)}</strong></td><td>${dirCell(t.side === 'buy' ? 'long' : 'short')}</td><td class="num">${fmtMoney(t.notional_usd, 2)}</td><td class="num">${fmtPct(t.risk_fraction, 2)}</td><td class="num">${fmtPct(t.expected_edge, 2)}</td><td class="num">${fmtPct(t.estimated_round_trip_cost, 2)}</td><td class="num">${fmtNum(t.stop_distance, 2)}</td></tr>`).join('') : '<tr><td colspan="7" class="nodata">No trades survived the portfolio gate.</td></tr>'}</tbody>
+      </table></div>
+    </div>` : '';
 
   // Only sized theses carry VaR — the "no directional edge" path returns early.
   const varRows = latest
@@ -952,6 +1004,8 @@ function renderTeamATab(rows) {
   }).join('');
 
   return `
+    ${portfolioRiskPanel}
+
     <div class="tiles" style="margin-bottom:14px">
       <div class="tile"><div class="label">Approved</div><div class="value">${approved}</div><div class="sub">passed risk</div></div>
       <div class="tile"><div class="label">Vetoed</div><div class="value">${vetoed}</div><div class="sub">breached VaR limit</div></div>
@@ -961,7 +1015,7 @@ function renderTeamATab(rows) {
     <div class="grid-2">
       <div class="panel chart">
         <h2>Value at Risk (95%) vs the veto limit</h2>
-        <p class="note">The Risker rejects any thesis above ${fmtPct(VAR_LIMIT, 0)}. Only sized theses carry a VaR figure.</p>
+        <p class="note">Historical per-symbol VaR is retained for legacy records; new batches use portfolio VaR and CVaR in the council gate above.</p>
         ${hBarChart(varRows, { compact: true, refLines: [{ value: VAR_LIMIT, label: 'veto ' + fmtPct(VAR_LIMIT, 0) }], tickFormat: t => (t * 100).toFixed(1) + '%' })}
       </div>
       <div class="panel chart">
@@ -973,14 +1027,14 @@ function renderTeamATab(rows) {
 
     <div class="panel">
       <h2>Thesis &amp; risk detail</h2>
-      <p class="note">Trader's directional call and the Risker's sizing/veto decision per scan.</p>
+      <p class="note">Legacy per-symbol records plus the current portfolio-level allocation and risk decision.</p>
       <div class="scroll"><table>
         <thead><tr><th>Time</th><th>Symbol</th><th>Thesis</th><th>Confidence</th><th>Status</th><th>Kelly</th><th>VaR(95)</th><th>CVaR(95)</th><th>Size</th><th>Rationale</th></tr></thead>
         <tbody>${tableRows || '<tr><td colspan="10" class="nodata">No data.</td></tr>'}</tbody></table></div>
     </div>`;
 }
 
-/* --------------------------------------------------------------- Team S */
+/* ------------------------------------------------------- Execution Commander */
 
 function renderTeamSTab(rows) {
   const executed = rows.filter(r => r.execution_result?.executed);
@@ -988,6 +1042,9 @@ function renderTeamSTab(rows) {
   const dry = rows.filter(r => !r.execution_result);
   const childOrders = executed.reduce((s, r) => s + (r.execution_result.child_orders || []).length, 0);
   const notional = executed.reduce((s, r) => s + (r.execution_result.total_qty || 0) * (r.execution_result.reference_price || 0), 0);
+  const fillSnapshots = rows.flatMap(r => r.fill_snapshots || []);
+  const filledQty = fillSnapshots.reduce((sum, item) => sum + (Number(item.filled_qty) || 0), 0);
+  const reconciliationErrors = fillSnapshots.filter(item => item.status === 'reconciliation_error').length;
 
   const notionalRows = latestPerSymbol(executed).map(r => {
     const e = r.execution_result;
@@ -1016,6 +1073,20 @@ function renderTeamSTab(rows) {
       <div class="tile"><div class="label">Child orders</div><div class="value">${childOrders}</div><div class="sub">TWAP slices</div></div>
       <div class="tile"><div class="label">Notional</div><div class="value">${fmtCompactMoney(notional)}</div><div class="sub">at reference price</div></div>
       <div class="tile"><div class="label">Skipped</div><div class="value">${skipped.length}</div><div class="sub">${dry.length} dry-run</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>Broker fill reconciliation</h2>
+      <p class="note">Submitted orders are not treated as completed trades until the broker reports filled quantity and average fill price.</p>
+      <div class="tiles" style="margin-bottom:14px">
+        <div class="tile"><div class="label">Order snapshots</div><div class="value">${fillSnapshots.length}</div><div class="sub">queried from broker</div></div>
+        <div class="tile"><div class="label">Filled quantity</div><div class="value">${fmtNum(filledQty, 4)}</div><div class="sub">confirmed quantity</div></div>
+        <div class="tile"><div class="label">Reconciliation errors</div><div class="value">${reconciliationErrors}</div><div class="sub">${reconciliationErrors ? 'needs review' : 'none recorded'}</div></div>
+      </div>
+      <div class="scroll"><table>
+        <thead><tr><th>Order</th><th>Symbol</th><th>Status</th><th>Requested</th><th>Filled</th><th>Average fill</th><th>Filled at</th></tr></thead>
+        <tbody>${fillSnapshots.length ? fillSnapshots.slice().reverse().map(item => `<tr><td class="wrap-cell">${esc(item.id || '—')}</td><td><strong>${esc(item.symbol || '—')}</strong></td><td>${badge(item.status || 'unknown', item.status === 'filled' ? 'good' : item.status === 'reconciliation_error' ? 'critical' : 'muted')}</td><td class="num">${fmtNum(item.qty, 4)}</td><td class="num">${fmtNum(item.filled_qty, 4)}</td><td class="num">${item.filled_avg_price ? fmtMoney(item.filled_avg_price, 2) : '—'}</td><td>${fmtTime(item.filled_at)}</td></tr>`).join('') : '<tr><td colspan="7" class="nodata">No broker fill snapshots in the selected records.</td></tr>'}</tbody>
+      </table></div>
     </div>
 
     <div class="panel chart">
@@ -1158,12 +1229,13 @@ function renderAboutTab() {
         <p>Long needs <code>P(up) &gt; ${fmtPct(LONG_THRESHOLD)}</code> in a bull/sideways regime;
         short needs <code>P(up) &lt; ${fmtPct(SHORT_THRESHOLD)}</code>. Hostile macro
         (<code>&le; &minus;0.3</code>) vetoes a long outright; lukewarm macro halves conviction.
-        The Risker then sizes with half-Kelly — <code>f* = p &minus; (1&minus;p)/b</code>, with
+        The Portfolio Council then sizes with volatility targeting and portfolio
+        tail-risk controls, with
         <code>b</code> measured from the symbol's own 2-year win/loss history — caps it at 25%
         of allocated capital, and <strong>vetoes anything whose 95% VaR exceeds 5%</strong>.</p>`)}
       ${stage(4, 'Execution Commander', 'agents/execution_commander.py', `
         <p>The only code in the repo that can call <code>submit_order</code>, and it refuses
-        unless Team A set <code>approved: true</code>. Re-checks live buying power, buys
+        unless the council set <code>approved: true</code>. Re-checks live buying power, buys
         fractional shares on longs (Alpaca only forbids fractional <em>shorts</em>),
         TWAP-slices whole-share sells, and submits to the <strong>paper</strong> endpoint only.</p>`)}
     </div>
@@ -1185,7 +1257,7 @@ function renderAboutTab() {
       <ul class="rails">
         <li><strong>Paper only.</strong> The Alpaca client raises unless the base URL contains <code>paper-api</code>.</li>
         <li><strong>One execution chokepoint.</strong> Every other agent is structurally incapable of trading.</li>
-        <li><strong>Risk veto.</strong> 95% VaR above 5% blocks the trade; Team S cannot override it.</li>
+        <li><strong>Portfolio risk veto.</strong> VaR/CVaR, correlation, exposure and volatility limits block unsafe batches.</li>
         <li><strong>Double-margined sizing.</strong> Half-Kelly, then capped at 25% of allocated capital.</li>
         <li><strong>Graceful macro degradation.</strong> No FRED key means the Economist reports <em>no opinion</em> — it never downgrades a thesis on missing data.</li>
       </ul>
