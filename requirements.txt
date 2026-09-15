@@ -1,7 +1,4 @@
-crewai
-langchain
 alpaca-trade-api>=3.0
-py-alpaca-api
 pandas
 numpy
 scikit-learn

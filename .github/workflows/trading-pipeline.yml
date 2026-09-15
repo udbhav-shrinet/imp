@@ -27,18 +27,18 @@ on:
         description: "Comma-separated ticker symbols to scan (blank = auto-select affordable symbols from the ~560-symbol candidate pool)"
         required: false
         default: ""
-      max_position_usd:
-        description: "Hard dollar ceiling for a single position, regardless of equity"
+      max_new_positions:
+        description: "Maximum new positions in this 30-minute batch"
         required: false
-        default: "50"
-      price_bracket_pct:
-        description: "Per-share price ceiling as a fraction of equity (0.125 = 12.5%), floor $1. Ignored if symbols is set."
-        required: false
-        default: "0.125"
+        default: "5"
       max_candidates:
-        description: "Cap on how many price-affordable candidates get the full pipeline in one run. Ignored if symbols is set."
+        description: "Maximum symbols scanned in this 30-minute cycle"
         required: false
         default: "76"
+      max_positions:
+        description: "Maximum total open positions"
+        required: false
+        default: "15"
       execute:
         description: "Actually submit the paper trade via Alpaca"
         required: false
@@ -47,6 +47,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: paper-trading-cycle
+  cancel-in-progress: false
 
 jobs:
   run-pipeline:
@@ -78,9 +82,13 @@ jobs:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: |
           ARGS=(
-            --max-position-usd "${{ github.event.inputs.max_position_usd || '50' }}"
-            --price-bracket-pct "${{ github.event.inputs.price_bracket_pct || '0.125' }}"
+            --max-new-positions "${{ github.event.inputs.max_new_positions || '5' }}"
+            --max-positions "${{ github.event.inputs.max_positions || '15' }}"
             --max-candidates "${{ github.event.inputs.max_candidates || '76' }}"
+            --target-annual-volatility "0.12"
+            --max-portfolio-var "0.04"
+            --max-portfolio-cvar "0.06"
+            --max-correlation "0.85"
           )
           # Blank (scheduled runs, or a manual run left at the default) lets
           # main.py auto-select affordable symbols from its ~560-symbol

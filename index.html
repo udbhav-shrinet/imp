@@ -276,15 +276,15 @@
 <div class="wrap">
   <header class="masthead">
     <h1>Trading Pipeline Dashboard</h1>
-    <p class="subtitle">Team C &rarr; Team B &rarr; Team A &rarr; Team S &middot; Alpaca paper trading</p>
+    <p class="subtitle">Market Intelligence &rarr; Quant Research &rarr; Portfolio Council &rarr; Execution Commander &middot; Alpaca paper trading</p>
   </header>
 
   <div class="tabs" id="tabs">
     <button class="tab-btn active" data-tab="main">Overview</button>
-    <button class="tab-btn" data-tab="teamc">Team C &middot; Signals</button>
-    <button class="tab-btn" data-tab="teamb">Team B &middot; Quants</button>
-    <button class="tab-btn" data-tab="teama">Team A &middot; Risk</button>
-    <button class="tab-btn" data-tab="teams">Team S &middot; Execution</button>
+    <button class="tab-btn" data-tab="teamc">Market Intelligence</button>
+    <button class="tab-btn" data-tab="teamb">Quant Research</button>
+    <button class="tab-btn" data-tab="teama">Portfolio Council</button>
+    <button class="tab-btn" data-tab="teams">Execution Commander</button>
     <button class="tab-btn" data-tab="runs">Runs &amp; logs</button>
     <button class="tab-btn" data-tab="about">How it works</button>
   </div>
@@ -304,7 +304,7 @@
 const HISTORY_URL = './logs/history.json';
 const REFRESH_MS = 60000;
 const ROW_LIMIT = 200;
-const VAR_LIMIT = 0.05;        // Risker's veto threshold, mirrors team_a_strategy.py
+const VAR_LIMIT = 0.05;        // Retained for compatibility with historical records.
 const LONG_THRESHOLD = 0.55;   // mirrors form_trade_thesis()
 const SHORT_THRESHOLD = 0.45;
 
@@ -1142,26 +1142,26 @@ function renderAboutTab() {
     <div class="panel">
       <h2>How a trade gets made</h2>
       <p class="note">Data flows strictly downward. Each team only sees the packet from the team above it, and only the last one can place an order.</p>
-      ${stage(1, 'Team C &middot; Data &amp; Signals', 'agents/team_c_data.py', `
+      ${stage(1, 'Market Intelligence', 'agents/market_intelligence.py', `
         <p>Pulls 2 years of daily bars, computes log-returns
         <code>r<sub>t</sub> = ln(S<sub>t</sub>/S<sub>t-1</sub>)</code>, then RSI(14),
         Bollinger(20, 2&sigma;), ATR(14), MACD(12,26,9) and EMA-9/21. ARIMA and Holt's
         forecasts are fit <em>on the log-returns</em> (stationary) and converted back to
         price. Reddit + RSS news are scored with VADER and TF-IDF.</p>`)}
-      ${stage(2, 'Team B &middot; Quants', 'agents/team_b_quants.py', `
+      ${stage(2, 'Quant Research', 'agents/quant_research.py', `
         <p>Simulates GBM paths, fits an Ornstein-Uhlenbeck reversion speed &theta;, and
         classifies the regime. The Economist scores the macro backdrop from FRED
         (10Y&minus;2Y spread + VIX) into <code>macro_score</code> &isin; [&minus;1, 1]. A Random
         Forest predicts <code>P(up)</code> on a rolling 252-day window, walk-forward
         validated, with <code>macro_score</code> joined to each historical row by date.</p>`)}
-      ${stage(3, 'Team A &middot; Strategy &amp; Risk', 'agents/team_a_strategy.py', `
+      ${stage(3, 'Portfolio Council', 'agents/portfolio_council.py', `
         <p>Long needs <code>P(up) &gt; ${fmtPct(LONG_THRESHOLD)}</code> in a bull/sideways regime;
         short needs <code>P(up) &lt; ${fmtPct(SHORT_THRESHOLD)}</code>. Hostile macro
         (<code>&le; &minus;0.3</code>) vetoes a long outright; lukewarm macro halves conviction.
         The Risker then sizes with half-Kelly — <code>f* = p &minus; (1&minus;p)/b</code>, with
         <code>b</code> measured from the symbol's own 2-year win/loss history — caps it at 25%
         of allocated capital, and <strong>vetoes anything whose 95% VaR exceeds 5%</strong>.</p>`)}
-      ${stage(4, 'Team S &middot; Execution', 'agents/team_s_execution.py', `
+      ${stage(4, 'Execution Commander', 'agents/execution_commander.py', `
         <p>The only code in the repo that can call <code>submit_order</code>, and it refuses
         unless Team A set <code>approved: true</code>. Re-checks live buying power, buys
         fractional shares on longs (Alpaca only forbids fractional <em>shorts</em>),
@@ -1309,7 +1309,7 @@ async function load() {
     // this polls every 60s.
     const res = await fetch(HISTORY_URL, { cache: 'no-cache' });
     if (!res.ok) { renderEmpty('No run history yet (logs/history.json not found).'); return; }
-    historyData = await res.json();
+    historyData = normalizeHistory(await res.json());
     syncSymbolOptions();
     render();
     document.getElementById('footer').textContent = 'Auto-refreshes every 60s · last checked ' + new Date().toLocaleTimeString();
@@ -1317,6 +1317,64 @@ async function load() {
     if (!historyData.length) renderEmpty('Could not load run history: ' + err.message);
   } finally {
     content.classList.remove('stale');
+  }
+
+  function normalizeHistory(raw) {
+    return raw.flatMap(run => {
+      // Current pipeline records one portfolio cycle containing many research
+      // rows; expose one compatible scan row per symbol for the existing views.
+      if (Array.isArray(run.research)) {
+        return run.research.map(item => {
+          const trade = (run.plan?.trades || []).find(t => t.symbol === item.symbol);
+          const executionItems = [
+            ...(run.exit_execution?.orders || []),
+            ...(run.execution?.orders || [])
+          ].filter(order => order.symbol === item.symbol);
+          const accepted = executionItems.find(order => order.accepted);
+          return {
+            run_at: run.run_at,
+            symbol: item.symbol,
+            dry_run: run.dry_run,
+            account: run.account_after || run.account,
+            team_c: {
+              symbol: item.symbol,
+              last_close: item.price,
+              last_date: run.run_at,
+              bars_used: 0,
+              statistics: item.technical || {},
+              forecast: {},
+              sentiment: item.sentiment || {}
+            },
+            team_b: {
+              mathematician: {
+                market_regime: item.regime,
+                annualized_volatility: item.volatility
+              },
+              ml_engineer: { probability_up_next_day: item.probability_up },
+              economist: { macro_score: item.macro_score }
+            },
+            team_a_report: {
+              direction: item.direction === 'flat' ? 'no_trade' : item.direction,
+              approved: Boolean(trade),
+              position_size_usd: trade?.notional_usd || 0,
+              var_95: null
+            },
+            execution_result: accepted ? {
+              executed: true,
+              side: accepted.side || trade?.side,
+              total_qty: accepted.qty || 0,
+              reference_price: item.price,
+              child_orders: accepted.orders || []
+            } : (trade ? { executed: false, reason: run.dry_run ? 'Dry run' : 'Not accepted' } : null),
+            research: item,
+            portfolio_plan: run.plan,
+            exit_plan: run.exit_plan,
+            fill_snapshots: run.fill_snapshots || []
+          };
+        });
+      }
+      return [run];
+    });
   }
 }
 

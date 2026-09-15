@@ -22,7 +22,7 @@ def get_alpaca_client() -> REST:
     key_id = os.environ["APCA_API_KEY_ID"].strip()
     secret_key = os.environ["APCA_API_SECRET_KEY"].strip()
 
-    if "paper-api" not in base_url:
+    if base_url.rstrip("/") != "https://paper-api.alpaca.markets":
         raise RuntimeError(
             "Refusing to trade: APCA_API_BASE_URL must point at the paper "
             "trading endpoint (https://paper-api.alpaca.markets)."
@@ -81,6 +81,7 @@ def submit_order(
     order_type: str = "market",
     time_in_force: str = "day",
     limit_price: float | None = None,
+    client_order_id: str | None = None,
 ) -> dict:
     """
     Submit an order through the Alpaca paper trading API.
@@ -99,14 +100,17 @@ def submit_order(
         raise ValueError(f"qty must be positive, got {qty!r}")
 
     client = get_alpaca_client()
-    order = client.submit_order(
-        symbol=symbol,
-        qty=qty,
-        side=side,
-        type=order_type,
-        time_in_force=time_in_force,
-        limit_price=limit_price,
-    )
+    order_args = {
+        "symbol": symbol,
+        "qty": qty,
+        "side": side,
+        "type": order_type,
+        "time_in_force": time_in_force,
+        "limit_price": limit_price,
+    }
+    if client_order_id:
+        order_args["client_order_id"] = client_order_id
+    order = client.submit_order(**order_args)
     return {
         "id": order.id,
         "symbol": order.symbol,
@@ -118,7 +122,14 @@ def submit_order(
     }
 
 
-def slice_order_twap(symbol: str, total_qty: float, side: str, slices: int = 4, whole_shares: bool = True) -> list[dict]:
+def slice_order_twap(
+    symbol: str,
+    total_qty: float,
+    side: str,
+    slices: int = 4,
+    whole_shares: bool = True,
+    client_order_id: str | None = None,
+) -> list[dict]:
     """
     Split a large order into `slices` equal child orders (TWAP-style) to
     simulate real-world slippage avoidance, even on paper trades.
@@ -148,10 +159,11 @@ def slice_order_twap(symbol: str, total_qty: float, side: str, slices: int = 4, 
         slice_qtys = [round(per_slice_qty + (remainder if i == slices - 1 else 0), 6) for i in range(slices)]
 
     results = []
-    for qty in slice_qtys:
+    for index, qty in enumerate(slice_qtys):
         if qty <= 0:
             continue
-        results.append(submit_order(symbol=symbol, qty=qty, side=side))
+        child_id = f"{client_order_id}-{index}" if client_order_id else None
+        results.append(submit_order(symbol=symbol, qty=qty, side=side, client_order_id=child_id))
     return results
 
 
@@ -169,3 +181,36 @@ def get_open_positions() -> list[dict]:
         }
         for p in positions
     ]
+
+
+def get_open_orders() -> list[dict]:
+    """Return open orders so scheduled runs can be idempotent."""
+    client = get_alpaca_client()
+    orders = client.list_orders(status="open", direction="desc", nested=False)
+    return [
+        {
+            "id": order.id,
+            "symbol": order.symbol,
+            "side": order.side,
+            "qty": float(order.qty),
+            "status": order.status,
+            "client_order_id": getattr(order, "client_order_id", None),
+        }
+        for order in orders
+    ]
+
+
+def get_order_status(order_id: str) -> dict:
+    """Fetch broker status and fill details for reconciliation."""
+    order = get_alpaca_client().get_order(order_id)
+    return {
+        "id": order.id,
+        "symbol": order.symbol,
+        "side": order.side,
+        "qty": float(order.qty),
+        "filled_qty": float(order.filled_qty or 0),
+        "filled_avg_price": float(order.filled_avg_price or 0),
+        "status": order.status,
+        "submitted_at": str(order.submitted_at),
+        "filled_at": str(order.filled_at) if order.filled_at else None,
+    }
