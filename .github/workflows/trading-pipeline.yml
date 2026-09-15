@@ -2,8 +2,25 @@ name: Trading Pipeline
 
 on:
   schedule:
-    # Every 4 hours, weekdays only.
-    - cron: "0 */4 * * 1-5"
+    # Every 30 minutes during US market hours only, weekdays only.
+    # GitHub cron is always UTC, and US market hours shift by an hour with
+    # US daylight saving, so each window is scheduled separately.
+    #
+    # US DST (EDT, months 3-10): 13:30-20:00 UTC = 7:00 PM - 1:30 AM IST
+    - cron: "30 13 * 3-10 1-5"
+    - cron: "0,30 14-19 * 3-10 1-5"
+    - cron: "0 20 * 3-10 1-5"
+    # US standard time (EST, months 11-2): 14:30-21:00 UTC = 8:00 PM - 2:30 AM IST
+    - cron: "30 14 * 1,2,11,12 1-5"
+    - cron: "0,30 15-20 * 1,2,11,12 1-5"
+    - cron: "0 21 * 1,2,11,12 1-5"
+    #
+    # Caveat: US DST actually flips on the 2nd Sunday of March and the 1st
+    # Sunday of November, not on month boundaries, so for a few days each
+    # March and November these windows sit an hour off the real session.
+    # Orders submitted outside market hours are time_in_force: day and
+    # simply queue for the next open, so the failure mode is a queued
+    # order, not a rejected one.
   workflow_dispatch:
     inputs:
       symbols:

@@ -67,6 +67,8 @@
   }
 
   * { box-sizing: border-box; }
+  /* `display: flex` on .filters would otherwise beat the hidden attribute. */
+  [hidden] { display: none !important; }
   body {
     margin: 0;
     padding: 28px 20px 56px;
@@ -208,6 +210,51 @@
   .badge.good { color: var(--good-text); background: color-mix(in srgb, var(--good) 14%, transparent); }
   .badge.critical { color: var(--critical); background: color-mix(in srgb, var(--critical) 14%, transparent); }
   .badge.muted { color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 14%, transparent); }
+  .badge.warning { color: var(--text-primary); background: color-mix(in srgb, var(--warning) 26%, transparent); }
+
+  /* ---------- run transcript (console-style log) ---------- */
+  .chip {
+    font-size: 11px; font-weight: 600; letter-spacing: .02em;
+    color: var(--text-secondary); background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 5px; padding: 2px 7px;
+    vertical-align: middle; margin-left: 6px;
+  }
+  .log {
+    margin-top: 14px; max-height: 460px; overflow: auto;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 12px;
+    font: 12px/1.75 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .log-line { white-space: nowrap; color: var(--text-secondary); }
+  .log-line + .log-line { border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+  .log-t { color: var(--text-muted); }
+  .log-sym { color: var(--text-primary); font-weight: 700; }
+  .log-sep { color: var(--baseline); }
+  .log-dir.up { color: var(--good-text); font-weight: 600; }
+  .log-dir.down { color: var(--critical); font-weight: 600; }
+  .log-ok { color: var(--good-text); font-weight: 600; }
+  .log-no { color: var(--critical); font-weight: 600; }
+  .log-skip { color: var(--text-muted); font-weight: 600; }
+
+  /* ---------- how-it-works stages ---------- */
+  .stage { display: flex; gap: 14px; padding: 16px 0; border-top: 1px solid var(--gridline); }
+  .stage:first-of-type { border-top: none; }
+  .stage-n {
+    flex: none; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--series-1); color: #fff;
+    display: grid; place-items: center; font-size: 12.5px; font-weight: 700;
+  }
+  .stage-body { min-width: 0; }
+  .stage-body h3 { margin: 2px 0 6px; font-size: 14px; letter-spacing: -0.01em; }
+  .stage-body h3 code, .stage-body p code {
+    font: 11.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 4px; padding: 1px 5px; color: var(--text-secondary); font-weight: 500;
+  }
+  .stage-body p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+  ul.rails { margin: 12px 0 0; padding-left: 18px; color: var(--text-secondary); font-size: 13px; }
+  ul.rails li { margin-bottom: 6px; }
+  ul.rails strong { color: var(--text-primary); }
   .dir { font-weight: 650; }
   .dir.long { color: var(--good-text); }
   .dir.short { color: var(--critical); }
@@ -238,6 +285,8 @@
     <button class="tab-btn" data-tab="teamb">Team B &middot; Quants</button>
     <button class="tab-btn" data-tab="teama">Team A &middot; Risk</button>
     <button class="tab-btn" data-tab="teams">Team S &middot; Execution</button>
+    <button class="tab-btn" data-tab="runs">Runs &amp; logs</button>
+    <button class="tab-btn" data-tab="about">How it works</button>
   </div>
 
   <div class="filters">
@@ -529,6 +578,46 @@ function funnelChart(stages) {
   return `<svg viewBox="0 0 ${W} ${H}" role="img">${rows}</svg>`;
 }
 
+/**
+ * Macro regime over time. Diverging by nature (risk-on vs risk-off around a
+ * neutral 0), so it gets a fixed [-1,1] domain with a labelled zero baseline
+ * rather than an auto-fitted one — the distance from zero IS the signal, and
+ * an auto-fitted axis would make a flat 0.05 look like a regime swing.
+ */
+function macroChart(series) {
+  if (series.length < 2) {
+    return '<p class="nodata">Waiting on more runs — the macro curve needs at least two runs with a FRED key configured.</p>';
+  }
+  const W = 1000, H = 200, L = 52, R = 70, T = 16, B = 30;
+  const plotW = W - L - R, plotH = H - T - B;
+  const x = i => L + (i / (series.length - 1)) * plotW;
+  const y = v => T + plotH - ((v + 1) / 2) * plotH;   // fixed -1..1
+  const timeFmt = timeAxisFormat(series);
+
+  const grid = [-1, -0.5, 0, 0.5, 1].map(t => `
+    <line class="${t === 0 ? 'axis-line' : 'grid-line'}" x1="${L}" x2="${L + plotW}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" />
+    <text class="ax-text" x="${L - 10}" y="${(y(t) + 3.5).toFixed(1)}" text-anchor="end">${t > 0 ? '+' : ''}${t}</text>`).join('');
+
+  const pts = series.map((s, i) => ({ x: x(i), y: y(s.v), v: s.v }));
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(' ');
+  const last = pts[pts.length - 1];
+
+  const labelIdx = [0, Math.floor((series.length - 1) / 2), series.length - 1].filter((v, i, a) => a.indexOf(v) === i);
+  const xLabels = labelIdx.map(i =>
+    `<text class="ax-text" x="${x(i).toFixed(1)}" y="${H - 10}" text-anchor="${i === 0 ? 'start' : i === series.length - 1 ? 'end' : 'middle'}">${esc(timeFmt(series[i].t))}</text>`
+  ).join('');
+
+  return `<svg viewBox="0 0 ${W} ${H}" role="img">
+    ${grid}
+    <text class="ax-text" x="${L + plotW + 8}" y="${(y(0.72) + 3.5).toFixed(1)}">risk-on</text>
+    <text class="ax-text" x="${L + plotW + 8}" y="${(y(-0.72) + 3.5).toFixed(1)}">risk-off</text>
+    <path class="line-mark" d="${line}" />
+    <circle class="end-dot" cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="4.5" />
+    <text class="val-text" x="${(last.x - 8).toFixed(1)}" y="${(last.y - 9).toFixed(1)}" text-anchor="end">${last.v >= 0 ? '+' : ''}${last.v.toFixed(2)}</text>
+    ${xLabels}
+  </svg>`;
+}
+
 /* ------------------------------------------------------------- overview */
 
 function buildEquitySeries(rows) {
@@ -554,6 +643,16 @@ function renderMainTab(rows) {
   const dirClass = change === null ? 'flat' : change > 0 ? 'up' : change < 0 ? 'down' : 'flat';
   const deltaText = change === null ? 'no account data yet'
     : `${change >= 0 ? '+' : ''}${fmtMoney(change, 2)} (${fmtSignedPct(changePct)}) since first run`;
+
+  const runCount = groupRuns(rows).length;
+  const acct = [...historyData].reverse().find(r => r.account)?.account;
+  const econ = [...historyData].reverse().find(r => r.team_b?.economist)?.team_b.economist;
+  const macroTile = (econ && econ.macro_available !== false && typeof econ.macro_score === 'number')
+    ? {
+        value: (econ.macro_score >= 0 ? '+' : '') + fmtNum(econ.macro_score, 2),
+        sub: econ.macro_score > 0.3 ? 'risk-on' : econ.macro_score < -0.3 ? 'risk-off · longs vetoed' : 'neutral',
+      }
+    : { value: '—', sub: 'no FRED key set' };
 
   const funnel = funnelChart([
     { label: 'Symbols scanned', value: rows.length },
@@ -600,10 +699,12 @@ function renderMainTab(rows) {
         <div class="delta ${dirClass}">${esc(deltaText)}</div>
       </div>
       <div class="tiles">
-        <div class="tile"><div class="label">Scans</div><div class="value">${rows.length}</div><div class="sub">${symbols.size} symbols</div></div>
+        <div class="tile"><div class="label">Scans</div><div class="value">${rows.length}</div><div class="sub">${symbols.size} symbols · ${runCount} runs</div></div>
         <div class="tile"><div class="label">Approved</div><div class="value">${approved.length}</div><div class="sub">${rows.length ? Math.round(approved.length / rows.length * 100) : 0}% of scans</div></div>
         <div class="tile"><div class="label">Orders</div><div class="value">${executed.length}</div><div class="sub">${longs} long / ${shorts} short</div></div>
         <div class="tile"><div class="label">Capital deployed</div><div class="value">${fmtCompactMoney(executed.reduce((s, r) => s + (r.execution_result.total_qty || 0) * (r.execution_result.reference_price || 0), 0))}</div><div class="sub">at reference price</div></div>
+        <div class="tile"><div class="label">Buying power</div><div class="value">${acct ? fmtCompactMoney(acct.buying_power) : '—'}</div><div class="sub">${acct ? fmtMoney(acct.cash, 2) + ' cash' : 'no account data'}</div></div>
+        <div class="tile"><div class="label">Macro</div><div class="value">${macroTile.value}</div><div class="sub">${esc(macroTile.sub)}</div></div>
       </div>
     </div>
 
@@ -726,11 +827,15 @@ function renderTeamBTab(rows) {
 
   const tableRows = recent(rows).map(r => {
     const m = r.team_b?.mathematician || {}, ou = m.ornstein_uhlenbeck || {}, ml = r.team_b?.ml_engineer || {};
+    const damped = m.drift_damped_by_macro;
     return `<tr>
       <td>${fmtTime(r.run_at)}</td>
       <td><strong>${esc(r.symbol)}</strong></td>
       <td>${esc(m.market_regime) || '—'}</td>
       <td class="num">${fmtPct(m.annualized_drift)}</td>
+      <td class="num">${typeof m.annualized_drift_macro_adjusted === 'number'
+        ? fmtPct(m.annualized_drift_macro_adjusted) + (damped ? ' ' + badge('damped', 'warning') : '')
+        : '—'}</td>
       <td class="num">${fmtPct(m.annualized_volatility)}</td>
       <td class="num">${fmtNum(ou.theta, 3)}</td>
       <td class="num">${fmtNum(ou.mu, 2)}</td>
@@ -738,7 +843,39 @@ function renderTeamBTab(rows) {
     </tr>`;
   }).join('');
 
+  // Macro is account-wide (one FRED read per run), so it's summarised across
+  // the whole history rather than per filtered symbol — one point per run.
+  const macroSeries = [];
+  groupRuns(historyData).slice().reverse().forEach(run => {
+    const withMacro = run.scans.find(s => {
+      const ec = s.team_b?.economist;
+      return ec && typeof ec.macro_score === 'number' && ec.macro_available !== false;
+    });
+    if (withMacro) macroSeries.push({ t: withMacro.run_at, v: withMacro.team_b.economist.macro_score });
+  });
+  const lastEcon = [...historyData].reverse().find(r => r.team_b?.economist)?.team_b.economist;
+  const macroKnown = lastEcon && lastEcon.macro_available !== false && typeof lastEcon.macro_score === 'number';
+  const macroLabel = !macroKnown ? 'unavailable'
+    : lastEcon.macro_score > 0.3 ? 'risk-on'
+    : lastEcon.macro_score < -0.3 ? 'risk-off' : 'neutral';
+
+  const macroPanel = `
+    <div class="panel chart">
+      <h2>Macro regime over time — the Economist's call</h2>
+      <p class="note">One FRED read per run, shared by every symbol in it. Scored from the 10Y&minus;2Y Treasury spread and the VIX, normalised to &minus;1 (risk-off) &hellip; +1 (risk-on). Below &minus;0.3 Team A vetoes long theses outright.</p>
+      <div class="tiles" style="margin-bottom:14px">
+        <div class="tile"><div class="label">Macro score</div><div class="value">${macroKnown ? (lastEcon.macro_score >= 0 ? '+' : '') + fmtNum(lastEcon.macro_score, 2) : '—'}</div><div class="sub">${esc(macroLabel)}</div></div>
+        <div class="tile"><div class="label">10Y&minus;2Y spread</div><div class="value">${macroKnown && typeof lastEcon.t10y2y === 'number' ? fmtNum(lastEcon.t10y2y, 2) : '—'}</div><div class="sub">${macroKnown && typeof lastEcon.t10y2y === 'number' ? (lastEcon.t10y2y < 0 ? 'inverted' : 'positive') : 'no FRED key'}</div></div>
+        <div class="tile"><div class="label">VIX</div><div class="value">${macroKnown && typeof lastEcon.vixcls === 'number' ? fmtNum(lastEcon.vixcls, 1) : '—'}</div><div class="sub">${macroKnown && typeof lastEcon.vixcls === 'number' ? (lastEcon.vixcls > 25 ? 'turbulent' : lastEcon.vixcls < 18 ? 'calm' : 'moderate') : 'no FRED key'}</div></div>
+        <div class="tile"><div class="label">Drift damped</div><div class="value">${rows.filter(r => r.team_b?.mathematician?.drift_damped_by_macro).length}</div><div class="sub">scans this selection</div></div>
+      </div>
+      ${macroSeries.length >= 2 ? macroChart(macroSeries)
+        : `<p class="nodata">${macroKnown ? 'Only one run with macro data so far — the curve needs at least two.' : 'No macro data yet. Set FRED_API_KEY (free) to enable the Economist; until then it reports no opinion and never downgrades a thesis.'}</p>`}
+    </div>`;
+
   return `
+    ${macroPanel}
+
     <div class="panel chart">
       <h2>P(up next day) by symbol — the ML Engineer's call</h2>
       <p class="note">Random Forest with walk-forward validation. Team A goes long above ${fmtPct(LONG_THRESHOLD)} and short below ${fmtPct(SHORT_THRESHOLD)}; between those lines it stands down.</p>
@@ -768,10 +905,10 @@ function renderTeamBTab(rows) {
 
     <div class="panel">
       <h2>Quant detail</h2>
-      <p class="note">Mathematician (GBM, Ornstein-Uhlenbeck, regime) and ML Engineer output per scan.</p>
+      <p class="note">Mathematician (GBM, Ornstein-Uhlenbeck, regime) and ML Engineer output per scan. <strong>Adj. drift</strong> is the macro-damped drift actually fed to the GBM simulation — halved when macro is hostile <em>and</em> mean-reversion is weak.</p>
       <div class="scroll"><table>
-        <thead><tr><th>Time</th><th>Symbol</th><th>Regime</th><th>Ann. drift</th><th>Ann. vol</th><th>OU θ</th><th>OU μ</th><th>P(up)</th></tr></thead>
-        <tbody>${tableRows || '<tr><td colspan="8" class="nodata">No data.</td></tr>'}</tbody></table></div>
+        <thead><tr><th>Time</th><th>Symbol</th><th>Regime</th><th>Ann. drift</th><th>Adj. drift</th><th>Ann. vol</th><th>OU θ</th><th>OU μ</th><th>P(up)</th></tr></thead>
+        <tbody>${tableRows || '<tr><td colspan="9" class="nodata">No data.</td></tr>'}</tbody></table></div>
     </div>`;
 }
 
@@ -896,6 +1033,165 @@ function renderTeamSTab(rows) {
     </div>`;
 }
 
+/* ------------------------------------------------------------------ runs */
+
+/**
+ * Group flat scan records into pipeline runs (one workflow execution).
+ *
+ * `run_at` is stamped per symbol as that symbol finishes, so a single job
+ * spans several minutes — bucketing by timestamp prefix would split one run
+ * into three. Records are clustered by gap instead: the schedule fires every
+ * 30 minutes and a job takes ~2-4 minutes, so any gap over RUN_GAP_MS starts
+ * a new run.
+ */
+const RUN_GAP_MS = 5 * 60 * 1000;
+
+function groupRuns(rows) {
+  const sorted = rows.slice().sort((a, b) => a.run_at < b.run_at ? -1 : 1);
+  const runs = [];
+  let current = null;
+  sorted.forEach(r => {
+    const t = Date.parse(r.run_at);
+    if (!current || t - current.lastT > RUN_GAP_MS) {
+      current = { at: r.run_at, startedAt: r.run_at, lastT: t, scans: [] };
+      runs.push(current);
+    }
+    current.scans.push(r);
+    current.lastT = t;
+    current.at = r.run_at;
+  });
+  return runs.reverse();
+}
+
+function renderRunsTab(rows) {
+  const runs = groupRuns(rows);
+  if (!runs.length) return '<p class="nodata">No runs logged yet.</p>';
+
+  const runRows = runs.slice(0, 60).map(run => {
+    const approved = run.scans.filter(s => s.team_a_report?.approved).length;
+    const orders = run.scans.filter(s => s.execution_result?.executed).length;
+    const dry = run.scans.every(s => s.dry_run);
+    const econ = run.scans.find(s => s.team_b?.economist)?.team_b.economist;
+    const macro = econ && econ.macro_available !== false && typeof econ.macro_score === 'number'
+      ? (econ.macro_score >= 0 ? '+' : '') + econ.macro_score.toFixed(2) : '—';
+    const acct = [...run.scans].reverse().find(s => s.account)?.account;
+    const mins = Math.max(1, Math.round((Date.parse(run.at) - Date.parse(run.startedAt)) / 60000));
+    return `<tr>
+      <td>${fmtTime(run.startedAt)} <span class="log-t">· ${mins}m</span></td>
+      <td class="num">${run.scans.length}</td>
+      <td class="num">${approved}</td>
+      <td class="num">${orders}</td>
+      <td class="num">${macro}</td>
+      <td class="num">${acct ? fmtMoney(acct.equity, 2) : '—'}</td>
+      <td class="num">${acct ? fmtMoney(acct.buying_power, 2) : '—'}</td>
+      <td>${dry ? badge('dry run', 'muted') : badge('live', 'good')}</td>
+    </tr>`;
+  }).join('');
+
+  // Console-style transcript of the newest run: every decision, in order,
+  // with the pipeline's own reason text rather than a re-worded summary.
+  const newest = runs[0];
+  const logLines = newest.scans.map(s => {
+    const a = s.team_a_report || {}, e = s.execution_result;
+    const parts = [`<span class="log-t">${fmtTime(s.run_at)}</span>`, `<span class="log-sym">${esc(s.symbol)}</span>`];
+    const p = s.team_b?.ml_engineer?.probability_up_next_day;
+    if (typeof p === 'number') parts.push(`P(up)=${fmtPct(p)}`);
+    if (a.direction) parts.push(`<span class="log-dir ${a.direction === 'long' ? 'up' : a.direction === 'short' ? 'down' : ''}">${esc(a.direction)}</span>`);
+    if (a.approved) {
+      parts.push(`<span class="log-ok">approved</span> ${fmtMoney(a.position_size_usd, 2)}`);
+    } else if (a.veto_reason) {
+      parts.push(`<span class="log-no">vetoed</span> ${esc(a.veto_reason)}`);
+    }
+    if (e?.executed) {
+      parts.push(`<span class="log-ok">FILLED</span> ${esc(e.side)} ${e.total_qty} @ ${fmtMoney(e.reference_price, 2)}`);
+    } else if (e && e.reason) {
+      parts.push(`<span class="log-skip">skipped</span> ${esc(e.reason)}`);
+    }
+    return `<div class="log-line">${parts.join(' <span class="log-sep">·</span> ')}</div>`;
+  }).join('');
+
+  return `
+    <div class="panel">
+      <h2>Pipeline runs</h2>
+      <p class="note">One row per workflow execution — every symbol in that run is scanned in a single job. Equity and buying power are read live from Alpaca at the end of the run.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Run</th><th>Scanned</th><th>Approved</th><th>Orders</th><th>Macro</th><th>Equity</th><th>Buying power</th><th>Mode</th></tr></thead>
+        <tbody>${runRows}</tbody></table></div>
+    </div>
+
+    <div class="panel">
+      <h2>Latest run transcript <span class="chip">${fmtTime(newest.startedAt)}</span> <span class="chip">${newest.scans.length} scans</span></h2>
+      <p class="note">Every decision from the most recent run, in order — verbatim reasons from the pipeline, not a summary.</p>
+      <div class="log">${logLines || '<div class="log-line">No scans in this run.</div>'}</div>
+    </div>`;
+}
+
+/* -------------------------------------------------------------- how it works */
+
+function renderAboutTab() {
+  const stage = (n, name, code, body) => `
+    <div class="stage">
+      <div class="stage-n">${n}</div>
+      <div class="stage-body">
+        <h3>${name} <code>${code}</code></h3>
+        ${body}
+      </div>
+    </div>`;
+
+  return `
+    <div class="panel">
+      <h2>How a trade gets made</h2>
+      <p class="note">Data flows strictly downward. Each team only sees the packet from the team above it, and only the last one can place an order.</p>
+      ${stage(1, 'Team C &middot; Data &amp; Signals', 'agents/team_c_data.py', `
+        <p>Pulls 2 years of daily bars, computes log-returns
+        <code>r<sub>t</sub> = ln(S<sub>t</sub>/S<sub>t-1</sub>)</code>, then RSI(14),
+        Bollinger(20, 2&sigma;), ATR(14), MACD(12,26,9) and EMA-9/21. ARIMA and Holt's
+        forecasts are fit <em>on the log-returns</em> (stationary) and converted back to
+        price. Reddit + RSS news are scored with VADER and TF-IDF.</p>`)}
+      ${stage(2, 'Team B &middot; Quants', 'agents/team_b_quants.py', `
+        <p>Simulates GBM paths, fits an Ornstein-Uhlenbeck reversion speed &theta;, and
+        classifies the regime. The Economist scores the macro backdrop from FRED
+        (10Y&minus;2Y spread + VIX) into <code>macro_score</code> &isin; [&minus;1, 1]. A Random
+        Forest predicts <code>P(up)</code> on a rolling 252-day window, walk-forward
+        validated, with <code>macro_score</code> joined to each historical row by date.</p>`)}
+      ${stage(3, 'Team A &middot; Strategy &amp; Risk', 'agents/team_a_strategy.py', `
+        <p>Long needs <code>P(up) &gt; ${fmtPct(LONG_THRESHOLD)}</code> in a bull/sideways regime;
+        short needs <code>P(up) &lt; ${fmtPct(SHORT_THRESHOLD)}</code>. Hostile macro
+        (<code>&le; &minus;0.3</code>) vetoes a long outright; lukewarm macro halves conviction.
+        The Risker then sizes with half-Kelly — <code>f* = p &minus; (1&minus;p)/b</code>, with
+        <code>b</code> measured from the symbol's own 2-year win/loss history — caps it at 25%
+        of allocated capital, and <strong>vetoes anything whose 95% VaR exceeds 5%</strong>.</p>`)}
+      ${stage(4, 'Team S &middot; Execution', 'agents/team_s_execution.py', `
+        <p>The only code in the repo that can call <code>submit_order</code>, and it refuses
+        unless Team A set <code>approved: true</code>. Re-checks live buying power, buys
+        fractional shares on longs (Alpaca only forbids fractional <em>shorts</em>),
+        TWAP-slices whole-share sells, and submits to the <strong>paper</strong> endpoint only.</p>`)}
+    </div>
+
+    <div class="panel">
+      <h2>When it runs</h2>
+      <p class="note">Scheduled every 30 minutes during US market hours only, on weekdays. GitHub cron is UTC, so the two daylight-saving windows are scheduled separately.</p>
+      <div class="scroll"><table>
+        <thead><tr><th>Period</th><th>US session</th><th>UTC window</th><th>IST window</th><th>Runs/day</th></tr></thead>
+        <tbody>
+          <tr><td>Mar&ndash;Oct (EDT)</td><td>9:30&ndash;16:00 ET</td><td>13:30&ndash;20:00</td><td>7:00 PM&ndash;1:30 AM</td><td class="num">14</td></tr>
+          <tr><td>Nov&ndash;Feb (EST)</td><td>9:30&ndash;16:00 ET</td><td>14:30&ndash;21:00</td><td>8:00 PM&ndash;2:30 AM</td><td class="num">14</td></tr>
+        </tbody></table></div>
+      <p class="note" style="margin-top:10px">Orders submitted outside a session are <code>time_in_force: day</code> and queue for the next open rather than being rejected.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Safety rails</h2>
+      <ul class="rails">
+        <li><strong>Paper only.</strong> The Alpaca client raises unless the base URL contains <code>paper-api</code>.</li>
+        <li><strong>One execution chokepoint.</strong> Every other agent is structurally incapable of trading.</li>
+        <li><strong>Risk veto.</strong> 95% VaR above 5% blocks the trade; Team S cannot override it.</li>
+        <li><strong>Double-margined sizing.</strong> Half-Kelly, then capped at 25% of allocated capital.</li>
+        <li><strong>Graceful macro degradation.</strong> No FRED key means the Economist reports <em>no opinion</em> — it never downgrades a thesis on missing data.</li>
+      </ul>
+    </div>`;
+}
+
 /* ------------------------------------------------------------ interaction */
 
 const tooltip = document.getElementById('tooltip');
@@ -946,7 +1242,10 @@ function wireChartHovers() {
 
 /* ---------------------------------------------------------------- router */
 
-const TABS = { main: renderMainTab, teamc: renderTeamCTab, teamb: renderTeamBTab, teama: renderTeamATab, teams: renderTeamSTab };
+const TABS = {
+  main: renderMainTab, teamc: renderTeamCTab, teamb: renderTeamBTab,
+  teama: renderTeamATab, teams: renderTeamSTab, runs: renderRunsTab, about: renderAboutTab,
+};
 
 function renderEmpty(message) {
   document.getElementById('content').innerHTML = `
@@ -974,8 +1273,10 @@ function render() {
   if (!historyData.length) { renderEmpty('No runs logged yet.'); return; }
   const rows = filtered();
   document.getElementById('content').innerHTML = (TABS[activeTab] || renderMainTab)(rows);
+  // "How it works" is static reference copy — a symbol filter over it means nothing.
+  document.querySelector('.filters').hidden = activeTab === 'about';
 
-  const runs = new Set(historyData.map(r => r.run_at.slice(0, 16))).size;
+  const runs = groupRuns(historyData).length;
   const lastRun = historyData[historyData.length - 1]?.run_at;
   document.getElementById('filter-meta').textContent =
     `${rows.length} scans · ${runs} pipeline runs · last ${relTime(lastRun)}`;
@@ -1001,7 +1302,12 @@ async function load() {
   const content = document.getElementById('content');
   try {
     if (historyData.length) content.classList.add('stale');
-    const res = await fetch(HISTORY_URL + '?_=' + Date.now());
+    // `no-cache` revalidates every poll but still honours the ETag, so an
+    // unchanged log costs a 304 instead of re-downloading the whole file.
+    // A `?_=${Date.now()}` buster would make every URL unique and force a
+    // full transfer each time — the log only changes once per run, while
+    // this polls every 60s.
+    const res = await fetch(HISTORY_URL, { cache: 'no-cache' });
     if (!res.ok) { renderEmpty('No run history yet (logs/history.json not found).'); return; }
     historyData = await res.json();
     syncSymbolOptions();

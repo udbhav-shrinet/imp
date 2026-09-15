@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 LOGS_DIR = os.path.join(os.path.dirname(__file__), "..", "logs")
 HISTORY_PATH = os.path.join(LOGS_DIR, "history.json")
-MAX_HISTORY_ENTRIES = 500
+MAX_HISTORY_ENTRIES = 1000
 
 
 def _summarize_team_c(team_c_output: dict) -> dict:
@@ -43,7 +43,13 @@ def build_run_record(
         "dry_run": dry_run,
         "team_c": _summarize_team_c(team_c_output),
         "team_b": {
-            "mathematician": team_b_output["mathematician"],
+            # gbm_simulated_paths_sample is 100 floats of Monte-Carlo noise that
+            # nothing reads back -- not the dashboard, not any later run -- and it
+            # was ~30% of every record's size. At 14 runs/day the log rolls over
+            # fast enough already; don't spend the budget on unread simulation
+            # samples. The summary stats derived from it (drift, volatility) stay.
+            "mathematician": {k: v for k, v in team_b_output["mathematician"].items()
+                              if k != "gbm_simulated_paths_sample"},
             "ml_engineer": team_b_output["ml_engineer"],
             "economist": team_b_output["economist"],
         },

@@ -130,10 +130,25 @@ python main.py --max-position-usd 100 --execute  # raise the per-position ceilin
 | `--execute` | off | Without it, Team S is skipped entirely (dry run) |
 
 **On GitHub Actions:** Actions tab → **Trading Pipeline** → **Run workflow**,
-with the same inputs above available manually. On the `schedule` trigger
-(`cron: 0 */4 * * 1-5` — every 4 hours, Mon–Fri) it runs with defaults and
-**does execute trades**; a manual run is the only way to opt into a dry
-run (`execute: false`).
+with the same inputs above available manually. Scheduled runs use the
+defaults and **do execute trades**; a manual run is the only way to opt
+into a dry run (`execute: false`).
+
+**Schedule — every 30 minutes, during US market hours only, weekdays.**
+GitHub cron is always UTC while US market hours shift with daylight
+saving, so the two windows are scheduled separately:
+
+| Period | US session | UTC window | IST window | Runs/day |
+|---|---|---|---|---|
+| Mar–Oct (EDT) | 9:30–16:00 ET | 13:30–20:00 | 7:00 PM – 1:30 AM | 14 |
+| Nov–Feb (EST) | 9:30–16:00 ET | 14:30–21:00 | 8:00 PM – 2:30 AM | 14 |
+
+US DST actually flips on the 2nd Sunday of March and the 1st Sunday of
+November rather than on month boundaries, so for a few days each March
+and November the window sits an hour off the real session. Orders are
+`time_in_force: day`, so the failure mode is an order that queues for the
+next open — not a rejected one. US market holidays aren't tracked either,
+for the same reason.
 
 <details>
 <summary><b>How position sizing actually scales to a small account</b></summary>
@@ -342,11 +357,13 @@ Deploy from a branch → `main` / `(root)`**, then visit
 
 | Tab | Shows |
 |---|---|
-| **Main** | Equity curve, KPI tiles, trade log, all-scans table |
+| **Overview** | Equity curve, KPI tiles (incl. buying power and macro state), decision funnel, trade log, all-scans table |
 | **Team C** | Close, RSI, SMA, MACD, EMA, Z-score, ATR, sentiment, keywords |
-| **Team B** | Regime, drift/volatility, OU θ/μ, P(up), `macro_score` |
+| **Team B** | Macro regime chart (`macro_score` over time, with 10Y−2Y / VIX tiles), regime, drift vs macro-adjusted drift, OU θ/μ, P(up) |
 | **Team A** | Thesis, confidence, approved/vetoed + reason, Kelly, VaR/CVaR, size |
 | **Team S** | Execution status, side, qty, reference price, skip reason |
+| **Runs & logs** | One row per workflow execution (scanned/approved/orders/equity/buying power), plus a console-style transcript of the latest run with the pipeline's verbatim decision reasons |
+| **How it works** | The four-stage pipeline with the live thresholds, the schedule, and the safety rails |
 
 A published Claude Artifact can't serve this directly — its CSP blocks
 fetching external JSON — which is why the dashboard lives in the repo
